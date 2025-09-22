@@ -131,6 +131,10 @@ class EpubFileParser @Inject constructor() : FileParser {
                         coverImage = extractCoverImageBitmap(rawFile, coverImage)
                     )
                 }
+                } catch (e: Exception) {
+                    Log.e("EPUB_PARSER", "Error in ZIP processing: ${cachedFile.name}", e)
+                    return@withContext
+                }
             }
             book
         } catch (e: Exception) {
@@ -179,8 +183,8 @@ class EpubFileParser @Inject constructor() : FileParser {
     private suspend fun tryParseWithDuplicateHandling(cachedFile: CachedFile): BookWithCover? {
         return try {
             val parseResult = EpubDuplicateHandler.tryParseWithDuplicates(cachedFile)
-            if (!parseResult.success) {
-                Log.e("EPUB_PARSER", "Duplicate handling failed: ${parseResult.message}")
+            if (parseResult == null || !parseResult.success) {
+                Log.e("EPUB_PARSER", "Duplicate handling failed: ${parseResult?.message ?: "null result"}")
                 return null
             }
             
@@ -199,7 +203,7 @@ class EpubFileParser @Inject constructor() : FileParser {
                 val rawFile = cachedFile.rawFile ?: return null
                 FileInputStream(rawFile).use { fis ->
                     ZipInputStream(fis).use { zis ->
-                        var entry: ZipEntry? = zis.nextEntry
+                        var entry: java.util.zip.ZipEntry? = zis.nextEntry
                         while (entry != null) {
                             if (entry.name == opfEntry.name) {
                                 return@use zis.readBytes().toString(Charsets.UTF_8)
@@ -237,7 +241,7 @@ class EpubFileParser @Inject constructor() : FileParser {
             BookWithCover(
                 book = Book(
                     title = title,
-                    author = UIText.StringResource(author),
+                    author = UIText.StringValue(author),
                     description = description,
                     scrollIndex = 0,
                     scrollOffset = 0,
