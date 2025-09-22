@@ -50,32 +50,41 @@ class EpubTextParser @Inject constructor(
             if (rawFile == null || !rawFile.exists() || !rawFile.canRead()) return emptyList()
 
             withContext(Dispatchers.IO) {
-                ZipFile(rawFile).use { zip ->
-                    val tocEntry = zip.entries().toList().find { entry ->
-                        entry.name.endsWith(".ncx", ignoreCase = true)
-                    }
-                    val opfEntry = zip.entries().toList().find { entry ->
-                        entry.name.endsWith(".opf", ignoreCase = true)
-                    }
-
-                    val chapterEntries = zip.getChapterEntries(opfEntry)
-                    val imageEntries = zip.entries().toList().filter {
-                        provideImageExtensions().any { format ->
-                            it.name.endsWith(format, ignoreCase = true)
+                try {
+                    ZipFile(rawFile).use { zip ->
+                        val tocEntry = zip.entries().toList().find { entry ->
+                            entry.name.endsWith(".ncx", ignoreCase = true)
                         }
+                        val opfEntry = zip.entries().toList().find { entry ->
+                            entry.name.endsWith(".opf", ignoreCase = true)
+                        }
+
+                        val chapterEntries = zip.getChapterEntries(opfEntry)
+                        val imageEntries = zip.entries().toList().filter {
+                            provideImageExtensions().any { format ->
+                                it.name.endsWith(format, ignoreCase = true)
+                            }
+                        }
+                        val chapterTitleEntries = zip.getChapterTitleMapFromToc(tocEntry)
+
+                        Log.i(EPUB_TAG, "TOC Entry: ${tocEntry?.name ?: "no toc.ncx"}")
+                        Log.i(EPUB_TAG, "OPF Entry: ${opfEntry?.name ?: "no .opf entry"}")
+                        Log.i(EPUB_TAG, "Chapter entries, size: ${chapterEntries.size}")
+                        Log.i(EPUB_TAG, "Title entries, size: ${chapterTitleEntries?.size}")
+
+                        readerText = zip.parseEpub(
+                            chapterEntries = chapterEntries,
+                            imageEntries = imageEntries,
+                            chapterTitleEntries = chapterTitleEntries
+                        )
                     }
-                    val chapterTitleEntries = zip.getChapterTitleMapFromToc(tocEntry)
-
-                    Log.i(EPUB_TAG, "TOC Entry: ${tocEntry?.name ?: "no toc.ncx"}")
-                    Log.i(EPUB_TAG, "OPF Entry: ${opfEntry?.name ?: "no .opf entry"}")
-                    Log.i(EPUB_TAG, "Chapter entries, size: ${chapterEntries.size}")
-                    Log.i(EPUB_TAG, "Title entries, size: ${chapterTitleEntries?.size}")
-
-                    readerText = zip.parseEpub(
-                        chapterEntries = chapterEntries,
-                        imageEntries = imageEntries,
-                        chapterTitleEntries = chapterTitleEntries
-                    )
+                } catch (e: java.util.zip.ZipException) {
+                    if (e.message?.contains("Duplicate entry") == true) {
+                        Log.i(EPUB_TAG, "Duplicate entries detected, using alternative parsing: ${cachedFile.name}")
+                        readerText = parseWithDuplicateHandling(cachedFile)
+                    } else {
+                        throw e
+                    }
                 }
             }
 
@@ -164,6 +173,109 @@ class EpubTextParser @Inject constructor(
         }
 
         return readerText
+    }
+    
+    /**
+     * Alternative parsing method for EPUB files with duplicate entries.
+     */
+    private suspend fun parseWithDuplicateHandling(cachedFile: CachedFile): List<ReaderText> {
+        return try {
+            val parseResult = EpubDuplicateHandler.tryParseWithDuplicates(cachedFile)
+            if (parseResult == null || !parseResult.success) {
+                Log.e(EPUB_TAG, "Duplicate handling failed: ${parseResult?.message ?: "null result"}")
+                return emptyList()
+            }
+            
+            Log.i(EPUB_TAG, "Successfully parsed EPUB text with duplicate handling: ${cachedFile.name}")
+            
+            // Find OPF and NCX files
+            val opfEntry = parseResult.entries.find { entry ->
+                entry.name.endsWith(".opf", ignoreCase = true)
+            }
+            val tocEntry = parseResult.entries.find { entry ->
+                entry.name.endsWith(".ncx", ignoreCase = true)
+            }
+            
+            if (opfEntry == null) {
+                Log.e(EPUB_TAG, "No OPF file found in duplicate handling")
+                return emptyList()
+            }
+            
+            // Get OPF content
+            val opfContent = if (parseResult.entryData.containsKey(opfEntry.name)) {
+                String(parseResult.entryData[opfEntry.name]!!)
+            } else {
+                // Fallback: read from file
+                val rawFile = cachedFile.rawFile ?: return emptyList()
+                java.io.FileInputStream(rawFile).use { fis ->
+                    java.util.zip.ZipInputStream(fis).use { zis ->
+                        var entry: java.util.zip.ZipEntry? = zis.nextEntry
+                        while (entry != null) {
+                            if (entry.name == opfEntry.name) {
+                                return@use zis.readBytes().toString(Charsets.UTF_8)
+                            }
+                            zis.closeEntry()
+                            entry = zis.nextEntry
+                        }
+                        return emptyList()
+                    }
+                }
+            }
+            
+            // Parse OPF content to get chapter entries
+            val document = Jsoup.parse(opfContent)
+            val chapterEntries = parseResult.entries.filter { entry ->
+                entry.name.endsWith(".html", ignoreCase = true) || 
+                entry.name.endsWith(".xhtml", ignoreCase = true)
+            }
+            
+            val imageEntries = parseResult.entries.filter {
+                provideImageExtensions().any { format ->
+                    it.name.endsWith(format, ignoreCase = true)
+                }
+            }
+            
+            // Create a simple reader text list
+            val readerText = mutableListOf<ReaderText>()
+            
+            // Add chapters
+            chapterEntries.forEachIndexed { index, entry ->
+                val content = if (parseResult.entryData.containsKey(entry.name)) {
+                    String(parseResult.entryData[entry.name]!!)
+                } else {
+                    // Fallback: read from file
+                    val rawFile = cachedFile.rawFile ?: return emptyList()
+                    java.io.FileInputStream(rawFile).use { fis ->
+                        java.util.zip.ZipInputStream(fis).use { zis ->
+                            var zipEntry: java.util.zip.ZipEntry? = zis.nextEntry
+                            while (zipEntry != null) {
+                                if (zipEntry.name == entry.name) {
+                                    return@use zis.readBytes().toString(Charsets.UTF_8)
+                                }
+                                zis.closeEntry()
+                                zipEntry = zis.nextEntry
+                            }
+                            ""
+                        }
+                    }
+                }
+                
+                val parsedContent = documentParser.parseDocument(
+                    document = Jsoup.parse(content),
+                    zipFile = null, // We can't use ZipFile here due to duplicates
+                    imageEntries = imageEntries,
+                    includeChapter = true
+                )
+                
+                readerText.addAll(parsedContent)
+            }
+            
+            readerText.toList()
+            
+        } catch (e: Exception) {
+            Log.e(EPUB_TAG, "Error in duplicate handling for text parsing: ${cachedFile.name}", e)
+            emptyList()
+        }
     }
 
     /**
