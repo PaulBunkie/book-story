@@ -92,7 +92,27 @@ class EpubTextParser @Inject constructor(
             Log.i(EPUB_TAG, "Successfully finished EPUB parsing.")
             readerText
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(EPUB_TAG, "Could not parse EPUB: ${cachedFile.name}.", e)
+            when (e) {
+                is java.util.zip.ZipException -> {
+                    Log.e(EPUB_TAG, "Invalid ZIP structure in EPUB: ${cachedFile.name}")
+                }
+                is org.jsoup.UnsupportedMimeTypeException -> {
+                    Log.e(EPUB_TAG, "Unsupported MIME type in EPUB: ${cachedFile.name}")
+                }
+                is java.io.IOException -> {
+                    Log.e(EPUB_TAG, "IO error reading EPUB: ${cachedFile.name}", e)
+                }
+                is java.lang.SecurityException -> {
+                    Log.e(EPUB_TAG, "Security error accessing EPUB: ${cachedFile.name}", e)
+                }
+                is java.nio.charset.MalformedInputException -> {
+                    Log.e(EPUB_TAG, "Character encoding error in EPUB: ${cachedFile.name}", e)
+                }
+                else -> {
+                    Log.e(EPUB_TAG, "Unknown error parsing EPUB: ${cachedFile.name}", e)
+                }
+            }
             emptyList()
         }
     }

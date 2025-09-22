@@ -8,6 +8,7 @@ package ua.acclorite.book_story.data.parser.epub
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
@@ -30,12 +31,35 @@ class EpubFileParser @Inject constructor() : FileParser {
 
             val rawFile = cachedFile.rawFile
             if (rawFile == null || !rawFile.exists() || !rawFile.canRead()) return null
+            
+            // Run diagnostics first
+            val diagnosticResult = EpubDiagnostics.diagnoseEpub(cachedFile)
+            if (!diagnosticResult.isValid) {
+                Log.e("EPUB_PARSER", "EPUB diagnostics failed for ${cachedFile.name}: ${diagnosticResult.issues}")
+                // Run detailed test for debugging
+                EpubTestUtils.testEpubFile(cachedFile)
+                return null
+            }
+            
+            Log.d("EPUB_PARSER", "EPUB diagnostics passed for ${cachedFile.name}")
 
             withContext(Dispatchers.IO) {
                 ZipFile(rawFile).use { zip ->
-                    val opfEntry = zip.entries().asSequence().find { entry ->
+                    // Log EPUB structure for debugging
+                    val entries = zip.entries().asSequence().toList()
+                    Log.d("EPUB_PARSER", "EPUB entries count: ${entries.size}")
+                    Log.d("EPUB_PARSER", "EPUB entries: ${entries.map { it.name }.take(10)}")
+                    
+                    val opfEntry = entries.find { entry ->
                         entry.name.endsWith(".opf", ignoreCase = true)
-                    } ?: return@withContext
+                    }
+                    
+                    if (opfEntry == null) {
+                        Log.e("EPUB_PARSER", "No OPF file found in EPUB: ${cachedFile.name}")
+                        return@withContext
+                    }
+                    
+                    Log.d("EPUB_PARSER", "Found OPF file: ${opfEntry.name}")
 
                     val opfContent = zip
                         .getInputStream(opfEntry)
@@ -100,7 +124,24 @@ class EpubFileParser @Inject constructor() : FileParser {
             }
             book
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("EPUB_PARSER", "Failed to parse EPUB: ${cachedFile.name}", e)
+            when (e) {
+                is java.util.zip.ZipException -> {
+                    Log.e("EPUB_PARSER", "Invalid ZIP structure in EPUB: ${cachedFile.name}")
+                }
+                is org.jsoup.UnsupportedMimeTypeException -> {
+                    Log.e("EPUB_PARSER", "Unsupported MIME type in EPUB: ${cachedFile.name}")
+                }
+                is java.io.IOException -> {
+                    Log.e("EPUB_PARSER", "IO error reading EPUB: ${cachedFile.name}", e)
+                }
+                is java.lang.SecurityException -> {
+                    Log.e("EPUB_PARSER", "Security error accessing EPUB: ${cachedFile.name}", e)
+                }
+                else -> {
+                    Log.e("EPUB_PARSER", "Unknown error parsing EPUB: ${cachedFile.name}", e)
+                }
+            }
             null
         }
     }

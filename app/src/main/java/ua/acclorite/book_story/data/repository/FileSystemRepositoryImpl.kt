@@ -139,16 +139,24 @@ class FileSystemRepositoryImpl @Inject constructor(
      * Gets book from given file. If error happened, returns [NullableBook.Null].
      */
     override suspend fun getBookFromFile(cachedFile: CachedFile): NullableBook {
-        val parsedBook = fileParser.parse(cachedFile)
-        if (parsedBook == null) {
-            Log.e(GET_BOOK_FROM_FILE, "Parsed file(${cachedFile.name}) is null.")
-            return Null(
+        return try {
+            val parsedBook = fileParser.parse(cachedFile)
+            if (parsedBook == null) {
+                Log.e(GET_BOOK_FROM_FILE, "Parsed file(${cachedFile.name}) is null.")
+                return Null(
+                    cachedFile.name,
+                    UIText.StringResource(R.string.error_something_went_wrong)
+                )
+            }
+
+            Log.i(GET_BOOK_FROM_FILE, "Successfully got book from file.")
+            NotNull(bookWithCover = parsedBook)
+        } catch (e: Exception) {
+            Log.e(GET_BOOK_FROM_FILE, "Error parsing file: ${cachedFile.name}", e)
+            Null(
                 cachedFile.name,
                 UIText.StringResource(R.string.error_something_went_wrong)
             )
         }
-
-        Log.i(GET_BOOK_FROM_FILE, "Successfully got book from file.")
-        return NotNull(bookWithCover = parsedBook)
     }
 }
