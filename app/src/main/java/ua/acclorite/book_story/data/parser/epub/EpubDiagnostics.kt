@@ -53,6 +53,22 @@ object EpubDiagnostics {
                     structure = structure
                 )
             }
+        } catch (e: java.util.zip.ZipException) {
+            if (e.message?.contains("Duplicate entry") == true) {
+                Log.e(TAG, "Duplicate entries found in EPUB: ${cachedFile.name}", e)
+                EpubDiagnosticResult(
+                    isValid = false,
+                    issues = listOf("Duplicate entries in ZIP: ${e.message}"),
+                    structure = EpubStructure()
+                )
+            } else {
+                Log.e(TAG, "ZIP error in EPUB: ${cachedFile.name}", e)
+                EpubDiagnosticResult(
+                    isValid = false,
+                    issues = listOf("ZIP error: ${e.message}"),
+                    structure = EpubStructure()
+                )
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error during EPUB diagnostics: ${cachedFile.name}", e)
             EpubDiagnosticResult(
