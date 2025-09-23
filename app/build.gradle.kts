@@ -93,6 +93,7 @@ dependencies {
     // although it is not.
     implementation("androidx.compose.foundation:foundation:1.8.0-beta03")
     implementation("androidx.compose.animation:animation:1.7.8")
+    implementation("androidx.viewpager2:viewpager2:1.1.0")
     implementation("androidx.compose.animation:animation-android:1.8.0-beta03")
     implementation("androidx.compose.foundation:foundation-layout:1.7.8")
     implementation("androidx.compose.ui:ui:1.7.8")

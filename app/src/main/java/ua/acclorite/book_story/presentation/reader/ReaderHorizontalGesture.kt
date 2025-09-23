@@ -41,7 +41,7 @@ fun Modifier.readerHorizontalGesture(
     horizontalGesturePullAnim: Boolean,
     isLoading: Boolean
 ): Modifier {
-    if (horizontalGesture == ReaderHorizontalGesture.OFF || isLoading) return this
+    if (horizontalGesture == ReaderHorizontalGesture.OFF || horizontalGesture == ReaderHorizontalGesture.PAGES || isLoading) return this
     val inverted = rememberUpdatedState(horizontalGesture == ReaderHorizontalGesture.INVERSE)
     val sensitivity = rememberUpdatedState(horizontalGestureSensitivity)
     val alphaAnim = rememberUpdatedState(horizontalGestureAlphaAnim)

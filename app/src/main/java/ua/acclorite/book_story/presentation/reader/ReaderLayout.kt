@@ -19,9 +19,17 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalConfiguration
+import android.util.Log
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -170,20 +178,160 @@ fun ReaderLayout(
                     isLoading = isLoading
                 )
         ) {
-            LazyColumnWithScrollbar(
-                state = listState,
-                enableScrollbar = false,
-                parentModifier = Modifier.weight(1f),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    top = (WindowInsets.displayCutout.asPaddingValues()
-                        .calculateTopPadding() + paragraphHeight)
-                        .coerceAtLeast(18.dp),
-                    bottom = (WindowInsets.displayCutout.asPaddingValues()
-                        .calculateBottomPadding() + paragraphHeight)
-                        .coerceAtLeast(18.dp),
-                )
-            ) {
+            // Переключаемся между обычным режимом и Pages режимом
+            if (horizontalGesture == ReaderHorizontalGesture.PAGES) {
+                // Pages режим
+                val configuration = LocalConfiguration.current
+                val screenWidth = configuration.screenWidthDp
+                val screenHeight = configuration.screenHeightDp
+                
+                var pages by remember { mutableStateOf<List<Page>?>(null) }
+                var isLoadingPages by remember { mutableStateOf(true) }
+                
+                LaunchedEffect(text, screenWidth, screenHeight, fontSize, lineHeight, sidePadding, paragraphHeight, fontFamily, fontThickness, fontStyle, textAlignment, letterSpacing, paragraphIndentation) {
+                    Log.d("READER_LAYOUT", "=== Starting Pages mode calculation ===")
+                    Log.d("READER_LAYOUT", "Text items: ${text.size}")
+                    Log.d("READER_LAYOUT", "Screen: ${screenWidth}x${screenHeight}")
+                    
+                    isLoadingPages = true
+                    try {
+                        Log.d("READER_LAYOUT", "Creating PageCalculator...")
+                        val calculator = PageCalculator()
+                        
+                        Log.d("READER_LAYOUT", "Calling calculatePages...")
+                        val calculatedPages = calculator.calculatePages(
+                            text = text,
+                            screenWidth = screenWidth,
+                            screenHeight = screenHeight,
+                            fontSize = fontSize,
+                            lineHeight = lineHeight,
+                            sidePadding = sidePadding,
+                            paragraphHeight = paragraphHeight,
+                            fontFamily = fontFamily,
+                            fontThickness = fontThickness,
+                            fontStyle = fontStyle,
+                            textAlignment = textAlignment,
+                            letterSpacing = letterSpacing,
+                            paragraphIndentation = paragraphIndentation
+                        )
+                        
+                        Log.d("READER_LAYOUT", "Pages calculation completed: ${calculatedPages.size} pages")
+                        pages = calculatedPages
+                    } catch (e: Exception) {
+                        Log.e("READER_LAYOUT", "Error calculating pages: ${e.message}", e)
+                        // В случае ошибки возвращаемся к обычному режиму
+                        pages = emptyList()
+                    } finally {
+                        Log.d("READER_LAYOUT", "Pages calculation finished")
+                        isLoadingPages = false
+                    }
+                }
+                
+                val currentPages = pages
+                if (isLoadingPages || currentPages == null) {
+                    Log.d("READER_LAYOUT", "Showing loading indicator. isLoadingPages: $isLoadingPages, pages: ${currentPages?.size}")
+                    // Показываем индикатор загрузки
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // TODO: Добавить индикатор загрузки
+                    }
+                } else if (currentPages.isNotEmpty()) {
+                    Log.d("READER_LAYOUT", "Showing ReaderPagesLayout with ${currentPages.size} pages")
+                    ReaderPagesLayout(
+                        pages = currentPages,
+                        activity = activity,
+                        fontFamily = fontFamily,
+                        fontColor = fontColor,
+                        lineHeight = lineHeight,
+                        fontThickness = fontThickness,
+                        fontStyle = fontStyle,
+                        textAlignment = textAlignment,
+                        fontSize = fontSize,
+                        letterSpacing = letterSpacing,
+                        sidePadding = sidePadding,
+                        paragraphIndentation = paragraphIndentation,
+                        onPageChanged = { /* TODO: Handle page change */ }
+                    )
+                } else {
+                    Log.d("READER_LAYOUT", "Pages calculation failed, showing fallback LazyColumn")
+                    // Если страницы не удалось рассчитать, показываем обычный режим
+                    LazyColumnWithScrollbar(
+                        state = listState,
+                        enableScrollbar = false,
+                        parentModifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            top = (WindowInsets.displayCutout.asPaddingValues()
+                                .calculateTopPadding() + paragraphHeight)
+                                .coerceAtLeast(18.dp),
+                            bottom = (WindowInsets.displayCutout.asPaddingValues()
+                                .calculateBottomPadding() + paragraphHeight)
+                                .coerceAtLeast(18.dp),
+                        )
+                    ) {
+                        itemsIndexed(
+                            text,
+                            key = { index, _ -> index }
+                        ) { index, entry ->
+                            when {
+                                !images && entry is ReaderText.Image -> return@itemsIndexed
+                                else -> {
+                                    SpacedItem(
+                                        index = index,
+                                        spacing = paragraphHeight
+                                    ) {
+                                        ReaderLayoutText(
+                                            activity = activity,
+                                            showMenu = showMenu,
+                                            entry = entry,
+                                            imagesCornersRoundness = imagesCornersRoundness,
+                                            imagesAlignment = imagesAlignment,
+                                            imagesWidth = imagesWidth,
+                                            imagesColorEffects = imagesColorEffects,
+                                            fontFamily = fontFamily,
+                                            fontColor = fontColor,
+                                            lineHeight = lineHeight,
+                                            fontThickness = fontThickness,
+                                            fontStyle = fontStyle,
+                                            chapterTitleAlignment = chapterTitleAlignment,
+                                            textAlignment = textAlignment,
+                                            horizontalAlignment = horizontalAlignment,
+                                            fontSize = fontSize,
+                                            letterSpacing = letterSpacing,
+                                            sidePadding = sidePadding,
+                                            paragraphIndentation = paragraphIndentation,
+                                            fullscreenMode = fullscreenMode,
+                                            doubleClickTranslation = doubleClickTranslation,
+                                            highlightedReading = highlightedReading,
+                                            highlightedReadingThickness = highlightedReadingThickness,
+                                            toolbarHidden = toolbarHidden,
+                                            openTranslator = openTranslator,
+                                            menuVisibility = menuVisibility
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Обычный режим с LazyColumn
+                LazyColumnWithScrollbar(
+                    state = listState,
+                    enableScrollbar = false,
+                    parentModifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        top = (WindowInsets.displayCutout.asPaddingValues()
+                            .calculateTopPadding() + paragraphHeight)
+                            .coerceAtLeast(18.dp),
+                        bottom = (WindowInsets.displayCutout.asPaddingValues()
+                            .calculateBottomPadding() + paragraphHeight)
+                            .coerceAtLeast(18.dp),
+                    )
+                ) {
                 itemsIndexed(
                     text,
                     key = { index, _ -> index }
@@ -227,6 +375,7 @@ fun ReaderLayout(
                         }
                     }
                 }
+            }
             }
 
             AnimatedVisibility(
