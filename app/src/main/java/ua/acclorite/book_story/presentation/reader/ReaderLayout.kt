@@ -185,13 +185,21 @@ fun ReaderLayout(
                 val screenWidth = configuration.screenWidthDp
                 val screenHeight = configuration.screenHeightDp
                 
-                var pages by remember { mutableStateOf<List<Page>?>(null) }
-                var isLoadingPages by remember { mutableStateOf(true) }
+                var pages by remember(horizontalGesture) { mutableStateOf<List<Page>?>(null) }
+                var isLoadingPages by remember(horizontalGesture) { mutableStateOf(true) }
                 
                 LaunchedEffect(text, screenWidth, screenHeight, fontSize, lineHeight, sidePadding, paragraphHeight, fontFamily, fontThickness, fontStyle, textAlignment, letterSpacing, paragraphIndentation) {
                     Log.d("READER_LAYOUT", "=== Starting Pages mode calculation ===")
                     Log.d("READER_LAYOUT", "Text items: ${text.size}")
                     Log.d("READER_LAYOUT", "Screen: ${screenWidth}x${screenHeight}")
+                    
+                    // Не запускаем расчет если текст пустой
+                    if (text.isEmpty()) {
+                        Log.d("READER_LAYOUT", "Text is empty, skipping page calculation")
+                        pages = emptyList()
+                        isLoadingPages = false
+                        return@LaunchedEffect
+                    }
                     
                     isLoadingPages = true
                     try {
