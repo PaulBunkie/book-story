@@ -304,6 +304,7 @@
     <string name="horizontal_gesture_off">Off</string>
     <string name="horizontal_gesture_on">On</string>
     <string name="horizontal_gesture_inverse">On (Inverse)</string>
+    <string name="horizontal_gesture_pages">Pages</string>
 
     <!-- Highlighted Reading properties -->
     <string name="highlighted_reading_level">level</string>

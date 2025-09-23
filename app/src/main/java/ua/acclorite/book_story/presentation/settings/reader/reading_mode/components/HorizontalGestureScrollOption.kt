@@ -28,15 +28,28 @@ fun HorizontalGestureScrollOption() {
             else -> true
         }
     ) {
-        SliderWithTitle(
-            value = state.value.horizontalGestureScroll to "%",
-            toValue = 100,
-            title = stringResource(id = R.string.horizontal_gesture_scroll_option),
-            onValueChange = {
-                mainModel.onEvent(
-                    MainEvent.OnChangeHorizontalGestureScroll(it)
+        when (state.value.horizontalGesture) {
+            ReaderHorizontalGesture.PAGES -> {
+                // Для режима PAGES фиксируем Scroll Fraction на 100%
+                SliderWithTitle(
+                    value = 1.0f to "%",
+                    toValue = 100,
+                    title = stringResource(id = R.string.horizontal_gesture_scroll_option),
+                    onValueChange = { /* Игнорируем изменения */ }
                 )
             }
-        )
+            else -> {
+                SliderWithTitle(
+                    value = state.value.horizontalGestureScroll to "%",
+                    toValue = 100,
+                    title = stringResource(id = R.string.horizontal_gesture_scroll_option),
+                    onValueChange = {
+                        mainModel.onEvent(
+                            MainEvent.OnChangeHorizontalGestureScroll(it)
+                        )
+                    }
+                )
+            }
+        }
     }
 }

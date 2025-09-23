@@ -6,6 +6,7 @@
 
 package ua.acclorite.book_story.presentation.reader
 
+import android.util.Log
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.scrollBy
@@ -25,12 +26,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import kotlinx.coroutines.launch
 import ua.acclorite.book_story.domain.reader.ReaderHorizontalGesture
+import ua.acclorite.book_story.domain.reader.ReaderText
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
 fun Modifier.readerHorizontalGesture(
     listState: LazyListState,
+    text: List<ReaderText>,
     horizontalGesture: ReaderHorizontalGesture,
     horizontalGestureScroll: Float,
     horizontalGestureSensitivity: Dp,
@@ -53,13 +56,55 @@ fun Modifier.readerHorizontalGesture(
 
     fun scrollBackward() {
         scope.launch {
-            listState.scrollBy(-screenHeight.floatValue)
+            when (horizontalGesture) {
+                ReaderHorizontalGesture.PAGES -> {
+                    // В режиме PAGES всегда скроллим на 100% высоты экрана
+                    listState.scrollBy(-screenHeight.floatValue)
+                    
+                    // Логирование после скролла
+                    val firstVisibleIndex = listState.firstVisibleItemIndex
+                    val firstVisibleOffset = listState.firstVisibleItemScrollOffset
+                    val textContent = if (firstVisibleIndex < text.size) {
+                        when (val item = text[firstVisibleIndex]) {
+                            is ReaderText.Text -> item.line.text.take(10)
+                            is ReaderText.Chapter -> item.title.take(10)
+                            else -> "Other"
+                        }
+                    } else "Out of bounds"
+                    
+                    Log.d("HORIZONTAL_SCROLL", "BACKWARD - Index: $firstVisibleIndex, Offset: $firstVisibleOffset, Text: '$textContent'")
+                }
+                else -> {
+                    listState.scrollBy(-screenHeight.floatValue)
+                }
+            }
         }
     }
 
     fun scrollForward() {
         scope.launch {
-            listState.scrollBy(screenHeight.floatValue)
+            when (horizontalGesture) {
+                ReaderHorizontalGesture.PAGES -> {
+                    // В режиме PAGES всегда скроллим на 100% высоты экрана
+                    listState.scrollBy(screenHeight.floatValue)
+                    
+                    // Логирование после скролла
+                    val firstVisibleIndex = listState.firstVisibleItemIndex
+                    val firstVisibleOffset = listState.firstVisibleItemScrollOffset
+                    val textContent = if (firstVisibleIndex < text.size) {
+                        when (val item = text[firstVisibleIndex]) {
+                            is ReaderText.Text -> item.line.text.take(10)
+                            is ReaderText.Chapter -> item.title.take(10)
+                            else -> "Other"
+                        }
+                    } else "Out of bounds"
+                    
+                    Log.d("HORIZONTAL_SCROLL", "FORWARD - Index: $firstVisibleIndex, Offset: $firstVisibleOffset, Text: '$textContent'")
+                }
+                else -> {
+                    listState.scrollBy(screenHeight.floatValue)
+                }
+            }
         }
     }
 

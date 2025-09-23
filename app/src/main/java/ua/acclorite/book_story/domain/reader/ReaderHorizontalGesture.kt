@@ -12,7 +12,8 @@ import androidx.compose.runtime.Immutable
 enum class ReaderHorizontalGesture {
     OFF,
     ON,
-    INVERSE
+    INVERSE,
+    PAGES
 }
 
 fun String.toHorizontalGesture(): ReaderHorizontalGesture {

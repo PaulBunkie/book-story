@@ -161,6 +161,7 @@ fun ReaderLayout(
                 .padding(vertical = verticalPadding)
                 .readerHorizontalGesture(
                     listState = listState,
+                    text = text,
                     horizontalGesture = horizontalGesture,
                     horizontalGestureScroll = horizontalGestureScroll,
                     horizontalGestureSensitivity = horizontalGestureSensitivity,

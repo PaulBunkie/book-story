@@ -24,6 +24,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import ua.acclorite.book_story.domain.browse.display.toBrowseLayout
 import ua.acclorite.book_story.domain.browse.display.toBrowseSortOrder
+import ua.acclorite.book_story.domain.reader.ReaderHorizontalGesture
 import ua.acclorite.book_story.domain.reader.toColorEffects
 import ua.acclorite.book_story.domain.reader.toFontThickness
 import ua.acclorite.book_story.domain.reader.toHorizontalGesture
@@ -351,13 +352,29 @@ class MainModel @Inject constructor(
                 }
             )
 
-            is MainEvent.OnChangeHorizontalGesture -> handleDatastoreUpdate(
-                key = DataStoreConstants.HORIZONTAL_GESTURE,
-                value = event.value,
-                updateState = {
-                    it.copy(horizontalGesture = toHorizontalGesture())
+            is MainEvent.OnChangeHorizontalGesture -> {
+                val newGesture = event.value.toHorizontalGesture()
+                
+                // Обновляем горизонтальный жест
+                handleDatastoreUpdate(
+                    key = DataStoreConstants.HORIZONTAL_GESTURE,
+                    value = event.value,
+                    updateState = {
+                        it.copy(horizontalGesture = newGesture)
+                    }
+                )
+                
+                // Если выбран режим PAGES, также обновляем scroll на 100%
+                if (newGesture == ReaderHorizontalGesture.PAGES) {
+                    handleDatastoreUpdate(
+                        key = DataStoreConstants.HORIZONTAL_GESTURE_SCROLL,
+                        value = 1.0,
+                        updateState = {
+                            it.copy(horizontalGestureScroll = 1.0f)
+                        }
+                    )
                 }
-            )
+            }
 
             is MainEvent.OnChangeHorizontalGestureScroll -> handleDatastoreUpdate(
                 key = DataStoreConstants.HORIZONTAL_GESTURE_SCROLL,

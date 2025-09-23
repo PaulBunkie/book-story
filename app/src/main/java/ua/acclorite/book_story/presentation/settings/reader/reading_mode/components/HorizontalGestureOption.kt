@@ -40,6 +40,9 @@ fun HorizontalGestureOption() {
                     ReaderHorizontalGesture.INVERSE -> {
                         stringResource(R.string.horizontal_gesture_inverse)
                     }
+                    ReaderHorizontalGesture.PAGES -> {
+                        stringResource(R.string.horizontal_gesture_pages)
+                    }
                 },
                 textStyle = MaterialTheme.typography.labelLarge,
                 selected = it == state.value.horizontalGesture
