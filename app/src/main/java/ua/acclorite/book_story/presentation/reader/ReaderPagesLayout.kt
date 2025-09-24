@@ -147,6 +147,7 @@ fun ReaderPagesLayout(
                                isFakeBoldText = fontThickness == ReaderFontThickness.MEDIUM
                                textSkewX = if (fontStyle == FontStyle.Italic) -0.25f else 0f
                                this.letterSpacing = letterSpacing.value.toFloat()
+                               isAntiAlias = true
                            }
                            
                            Log.d("PAGE_RENDER_DEBUG", "=== Page $pageIndex Render Analysis ===")
@@ -174,7 +175,8 @@ fun ReaderPagesLayout(
                                            availableWidth = availableWidth,
                                            fontSize = fontSize,
                                            lineHeight = lineHeight,
-                                           paragraphIndentation = paragraphIndentation
+                                           paragraphIndentation = paragraphIndentation,
+                                           textAlignment = textAlignment
                                        )
                                        totalCalculatedHeight += textHeight
                                        
@@ -282,7 +284,8 @@ private fun calculateTextHeight(
     availableWidth: Int,
     fontSize: TextUnit,
     lineHeight: TextUnit,
-    paragraphIndentation: TextUnit
+    paragraphIndentation: TextUnit,
+    textAlignment: ReaderTextAlignment
 ): Int {
     val lineHeightPx = lineHeight.value.toInt()
     val lineSpacingMultiplier = getLineSpacingMultiplier(lineHeight, fontSize)
@@ -290,7 +293,7 @@ private fun calculateTextHeight(
     val staticLayout = StaticLayout.Builder.obtain(
         text, 0, text.length, textPaint, availableWidth
     )
-        .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+        .setAlignment(getAlignment(textAlignment))
         .setLineSpacing(0f, lineSpacingMultiplier)
         .setIncludePad(false)
         .build()
@@ -299,10 +302,15 @@ private fun calculateTextHeight(
 }
 
 private fun getLineSpacingMultiplier(lineHeight: TextUnit, fontSize: TextUnit): Float {
-    return if (lineHeight.value > fontSize.value) {
-        (lineHeight.value - fontSize.value) / fontSize.value
-    } else {
-        0f
+    return lineHeight.value / fontSize.value
+}
+
+private fun getAlignment(textAlignment: ReaderTextAlignment): Layout.Alignment {
+    return when (textAlignment) {
+        ReaderTextAlignment.START -> Layout.Alignment.ALIGN_NORMAL
+        ReaderTextAlignment.CENTER -> Layout.Alignment.ALIGN_CENTER
+        ReaderTextAlignment.END -> Layout.Alignment.ALIGN_OPPOSITE
+        ReaderTextAlignment.JUSTIFY -> Layout.Alignment.ALIGN_NORMAL
     }
 }
 
