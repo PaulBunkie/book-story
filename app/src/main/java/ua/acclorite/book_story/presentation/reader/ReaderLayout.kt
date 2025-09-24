@@ -261,6 +261,8 @@ fun ReaderLayout(
                         sidePadding = sidePadding,
                         paragraphIndentation = paragraphIndentation,
                         paragraphHeight = paragraphHeight,
+                        contentPadding = contentPadding,
+                        verticalPadding = verticalPadding,
                         onPageChanged = { /* TODO: Handle page change */ },
                         showMenu = showMenu,
                         fullscreenMode = fullscreenMode,

@@ -55,6 +55,8 @@ fun ReaderPagesLayout(
     sidePadding: Dp,
     paragraphIndentation: TextUnit,
     paragraphHeight: Dp,
+    contentPadding: PaddingValues,
+    verticalPadding: Dp,
     onPageChanged: (Int) -> Unit,
     // Добавляем параметры для обработки тапов меню
     showMenu: Boolean,
@@ -112,11 +114,11 @@ fun ReaderPagesLayout(
                        Column(
                            modifier = Modifier
                                .fillMaxSize()
+                               .padding(contentPadding)
+                               .padding(vertical = verticalPadding)
                                .padding(
                                    start = sidePadding,
-                                   end = sidePadding,
-                                   top = 32.dp,
-                                   bottom = 32.dp
+                                   end = sidePadding
                                )
                        ) {
                            var isFirstElement = true
