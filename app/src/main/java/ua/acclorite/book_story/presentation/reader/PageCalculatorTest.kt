@@ -47,7 +47,9 @@ object PageCalculatorTest {
             fontStyle = FontStyle.Normal,
             textAlignment = ReaderTextAlignment.START,
             letterSpacing = 0.sp,
-            paragraphIndentation = 0.sp
+            paragraphIndentation = 0.sp,
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(),
+            verticalPadding = 0.dp
         )
         
         Log.d("PAGE_CALCULATOR_TEST", "Calculated ${pages.size} pages")

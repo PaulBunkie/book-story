@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.toFontFamily
 import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.layout.PaddingValues
 import android.graphics.Typeface
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -51,14 +52,21 @@ class PageCalculator {
         fontStyle: FontStyle,
         textAlignment: ReaderTextAlignment,
         letterSpacing: TextUnit,
-        paragraphIndentation: TextUnit
+        paragraphIndentation: TextUnit,
+        contentPadding: PaddingValues,
+        verticalPadding: Dp
     ): List<Page> = withContext(Dispatchers.Default) {
         Log.d("PAGE_CALCULATOR", "=== Starting page calculation with paragraphs ===")
         Log.d("PAGE_CALCULATOR", "Text items count: ${text.size}")
         Log.d("PAGE_CALCULATOR", "Screen: ${screenWidth}x${screenHeight}")
         
-        val availableWidth = screenWidth - (sidePadding.value * 2).toInt()
-        val availableHeight = screenHeight - (paragraphHeight.value * 2).toInt()
+        // Учитываем все отступы: contentPadding + verticalPadding + sidePadding
+        val contentPaddingPx = contentPadding.calculateTopPadding() + contentPadding.calculateBottomPadding()
+        val verticalPaddingPx = verticalPadding.value * 2
+        val sidePaddingPx = sidePadding.value * 2
+        
+        val availableWidth = screenWidth - sidePaddingPx.toInt()
+        val availableHeight = screenHeight - contentPaddingPx.value.toInt() - verticalPaddingPx.toInt()
         
         Log.d("PAGE_CALCULATOR", "Available space: ${availableWidth}x${availableHeight}")
         

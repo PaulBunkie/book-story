@@ -188,7 +188,7 @@ fun ReaderLayout(
                 var pages by remember(horizontalGesture) { mutableStateOf<List<Page>?>(null) }
                 var isLoadingPages by remember(horizontalGesture) { mutableStateOf(true) }
                 
-                LaunchedEffect(text, screenWidth, screenHeight, fontSize, lineHeight, sidePadding, paragraphHeight, fontFamily, fontThickness, fontStyle, textAlignment, letterSpacing, paragraphIndentation) {
+                LaunchedEffect(text, screenWidth, screenHeight, fontSize, lineHeight, sidePadding, paragraphHeight, fontFamily, fontThickness, fontStyle, textAlignment, letterSpacing, paragraphIndentation, contentPadding, verticalPadding) {
                     Log.d("READER_LAYOUT", "=== Starting Pages mode calculation ===")
                     Log.d("READER_LAYOUT", "Text items: ${text.size}")
                     Log.d("READER_LAYOUT", "Screen: ${screenWidth}x${screenHeight}")
@@ -220,7 +220,9 @@ fun ReaderLayout(
                             fontStyle = fontStyle,
                             textAlignment = textAlignment,
                             letterSpacing = letterSpacing,
-                            paragraphIndentation = paragraphIndentation
+                            paragraphIndentation = paragraphIndentation,
+                            contentPadding = contentPadding,
+                            verticalPadding = verticalPadding
                         )
                         
                         Log.d("READER_LAYOUT", "Pages calculation completed: ${calculatedPages.size} pages")
