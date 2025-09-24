@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import ua.acclorite.book_story.domain.reader.FontWithName
 import ua.acclorite.book_story.domain.reader.ReaderFontThickness
 import ua.acclorite.book_story.domain.reader.ReaderTextAlignment
+import ua.acclorite.book_story.domain.reader.ReaderText
 import ua.acclorite.book_story.ui.reader.ReaderEvent
 import android.util.Log
 
@@ -52,6 +54,7 @@ fun ReaderPagesLayout(
     letterSpacing: TextUnit,
     sidePadding: Dp,
     paragraphIndentation: TextUnit,
+    paragraphHeight: Dp,
     onPageChanged: (Int) -> Unit,
     // Добавляем параметры для обработки тапов меню
     showMenu: Boolean,
@@ -101,38 +104,107 @@ fun ReaderPagesLayout(
                         )
                     }
                 )
-        ) { pageIndex ->
-            if (pageIndex < pages.size) {
-                val page = pages[pageIndex]
-                
-                // Используем StyledText как в обычном режиме
-                StyledText(
-                    text = buildAnnotatedString { append(page.content) },
-                    style = TextStyle(
-                        fontFamily = fontFamily.font,
-                        fontWeight = fontThickness.thickness,
-                        textAlign = textAlignment.textAlignment,
-                        textIndent = TextIndent(firstLine = paragraphIndentation),
-                        fontStyle = fontStyle,
-                        letterSpacing = letterSpacing,
-                        fontSize = fontSize,
-                        lineHeight = lineHeight,
-                        color = fontColor,
-                        lineBreak = LineBreak.Paragraph
-                    ),
-                    highlightText = highlightedReading,
-                    highlightThickness = highlightedReadingThickness,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(
-                            start = sidePadding,
-                            end = sidePadding,
-                            top = 32.dp,
-                            bottom = 32.dp
-                        )
-                )
-            }
-        }
+               ) { pageIndex ->
+                   if (pageIndex < pages.size) {
+                       val page = pages[pageIndex]
+
+                       // Рендерим каждый ReaderText элемент отдельно
+                       Column(
+                           modifier = Modifier
+                               .fillMaxSize()
+                               .padding(
+                                   start = sidePadding,
+                                   end = sidePadding,
+                                   top = 32.dp,
+                                   bottom = 32.dp
+                               )
+                       ) {
+                           var isFirstElement = true
+                           for (readerText in page.content) {
+                               // Добавляем интервал между элементами (кроме первого)
+                               if (!isFirstElement) {
+                                   Spacer(modifier = Modifier.height(paragraphHeight))
+                               }
+                               isFirstElement = false
+                               
+                               when (readerText) {
+                                   is ReaderText.Text -> {
+                                       StyledText(
+                                           text = readerText.line,
+                                           style = TextStyle(
+                                               fontFamily = fontFamily.font,
+                                               fontWeight = fontThickness.thickness,
+                                               textAlign = textAlignment.textAlignment,
+                                               textIndent = TextIndent(firstLine = paragraphIndentation),
+                                               fontStyle = fontStyle,
+                                               letterSpacing = letterSpacing,
+                                               fontSize = fontSize,
+                                               lineHeight = lineHeight,
+                                               color = fontColor,
+                                               lineBreak = LineBreak.Paragraph
+                                           ),
+                                           highlightText = highlightedReading,
+                                           highlightThickness = highlightedReadingThickness,
+                                           modifier = Modifier.fillMaxWidth()
+                                       )
+                                   }
+                                   
+                                   is ReaderText.Chapter -> {
+                                       Text(
+                                           text = readerText.title,
+                                           style = TextStyle(
+                                               fontFamily = fontFamily.font,
+                                               fontWeight = FontWeight.Bold,
+                                               textAlign = textAlignment.textAlignment,
+                                               fontSize = fontSize * 1.2f,
+                                               lineHeight = lineHeight * 1.2f,
+                                               color = fontColor
+                                           ),
+                                           modifier = Modifier
+                                               .fillMaxWidth()
+                                               .padding(vertical = 16.dp)
+                                       )
+                                   }
+                                   
+                                   is ReaderText.Separator -> {
+                                       Text(
+                                           text = "---",
+                                           style = TextStyle(
+                                               fontFamily = fontFamily.font,
+                                               fontWeight = fontThickness.thickness,
+                                               textAlign = TextAlign.Center,
+                                               fontSize = fontSize,
+                                               lineHeight = lineHeight,
+                                               color = fontColor
+                                           ),
+                                           modifier = Modifier
+                                               .fillMaxWidth()
+                                               .padding(vertical = 16.dp)
+                                       )
+                                   }
+                                   
+                                   is ReaderText.Image -> {
+                                       // TODO: Реализовать отображение изображений
+                                       Text(
+                                           text = "[Изображение]",
+                                           style = TextStyle(
+                                               fontFamily = fontFamily.font,
+                                               fontWeight = fontThickness.thickness,
+                                               textAlign = TextAlign.Center,
+                                               fontSize = fontSize,
+                                               lineHeight = lineHeight,
+                                               color = fontColor
+                                           ),
+                                           modifier = Modifier
+                                               .fillMaxWidth()
+                                               .padding(vertical = 16.dp)
+                                       )
+                                   }
+                               }
+                           }
+                       }
+                   }
+               }
     }
 }
 
