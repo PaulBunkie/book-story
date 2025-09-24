@@ -6,34 +6,30 @@
 
 package ua.acclorite.book_story.presentation.reader
 
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import ua.acclorite.book_story.presentation.core.util.noRippleClickable
+import ua.acclorite.book_story.presentation.core.components.common.SelectionContainer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.toFontFamily
-import android.graphics.Typeface
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.recyclerview.widget.RecyclerView
-import androidx.viewpager2.widget.ViewPager2
 import ua.acclorite.book_story.domain.reader.FontWithName
 import ua.acclorite.book_story.domain.reader.ReaderFontThickness
 import ua.acclorite.book_story.domain.reader.ReaderTextAlignment
@@ -54,123 +50,87 @@ fun ReaderPagesLayout(
     letterSpacing: TextUnit,
     sidePadding: Dp,
     paragraphIndentation: TextUnit,
-    onPageChanged: (Int) -> Unit
+    onPageChanged: (Int) -> Unit,
+    // Добавляем параметры для обработки тапов меню
+    showMenu: Boolean,
+    fullscreenMode: Boolean,
+    onMenuVisibility: (ReaderEvent.OnMenuVisibility) -> Unit
 ) {
     Log.d("READER_PAGES_LAYOUT", "=== Creating ReaderPagesLayout ===")
     Log.d("READER_PAGES_LAYOUT", "Pages count: ${pages.size}")
     
     val density = LocalDensity.current
 
-    AndroidView(
-        factory = { context ->
-            Log.d("READER_PAGES_LAYOUT", "Creating ViewPager2...")
-            ViewPager2(context).apply {
-                orientation = ViewPager2.ORIENTATION_HORIZONTAL
-                
-                
-                Log.d("READER_PAGES_LAYOUT", "Creating PageAdapter...")
-                adapter = PageAdapter(
-                    pages = pages,
-                    fontFamily = fontFamily,
-                    fontColor = fontColor,
-                    lineHeight = lineHeight,
-                    fontThickness = fontThickness,
-                    fontStyle = fontStyle,
-                    textAlignment = textAlignment,
-                    fontSize = fontSize,
-                    letterSpacing = letterSpacing,
-                    sidePadding = sidePadding,
-                    paragraphIndentation = paragraphIndentation
-                )
-                Log.d("READER_PAGES_LAYOUT", "PageAdapter created successfully")
-
-                registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
-                    override fun onPageSelected(position: Int) {
-                        Log.d("READER_PAGES_LAYOUT", "Page selected: $position")
-                        onPageChanged(position)
-                    }
-                    
-                    override fun onPageScrollStateChanged(state: Int) {
-                        val stateName = when (state) {
-                            ViewPager2.SCROLL_STATE_IDLE -> "IDLE"
-                            ViewPager2.SCROLL_STATE_DRAGGING -> "DRAGGING"
-                            ViewPager2.SCROLL_STATE_SETTLING -> "SETTLING"
-                            else -> "UNKNOWN"
-                        }
-                        Log.d("READER_PAGES_LAYOUT", "Page scroll state: $stateName")
-                    }
-                    
-                    override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {
-                        Log.d("READER_PAGES_LAYOUT", "Page scrolled: position=$position, offset=$positionOffset")
-                    }
-                })
-            }
-        },
-        modifier = Modifier.fillMaxSize()
+    val pagerState = rememberPagerState(
+        initialPage = 0,
+        pageCount = { pages.size }
     )
-}
-
-private class PageAdapter(
-    private val pages: List<Page>,
-    private val fontFamily: FontWithName,
-    private val fontColor: Color,
-    private val lineHeight: TextUnit,
-    private val fontThickness: ReaderFontThickness,
-    private val fontStyle: FontStyle,
-    private val textAlignment: ReaderTextAlignment,
-    private val fontSize: TextUnit,
-    private val letterSpacing: TextUnit,
-    private val sidePadding: Dp,
-    private val paragraphIndentation: TextUnit
-) : RecyclerView.Adapter<PageViewHolder>() {
     
-    // Кэш для ViewHolder'ов чтобы избежать пересоздания
-    private val viewHolderCache = mutableMapOf<Int, PageViewHolder>()
+    // Отслеживаем изменения страниц
+    LaunchedEffect(pagerState.currentPage) {
+        Log.d("READER_PAGES_LAYOUT", "Page changed to: ${pagerState.currentPage}")
+        onPageChanged(pagerState.currentPage)
+    }
     
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PageViewHolder {
-        Log.d("PAGE_ADAPTER", "Creating ViewHolder for position: $viewType")
-        val textView = TextView(parent.context).apply {
-            setTextColor(fontColor.toArgb())
-            textSize = fontSize.value
-            typeface = Typeface.DEFAULT
-            setPadding(
-                sidePadding.value.toInt(),
-                32,
-                sidePadding.value.toInt(),
-                32
-            )
-            // Устанавливаем параметры макета для заполнения всей области
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-            
-            // Настраиваем TextView для выделения текста
-            setTextIsSelectable(true)
-            movementMethod = android.text.method.LinkMovementMethod.getInstance()
+    SelectionContainer(
+        onCopyRequested = { /* TODO: Handle copy */ },
+        onShareRequested = { /* TODO: Handle share */ },
+        onWebSearchRequested = { /* TODO: Handle web search */ },
+        onTranslateRequested = { /* TODO: Handle translate */ },
+        onDictionaryRequested = { /* TODO: Handle dictionary */ }
+    ) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxSize()
+                .noRippleClickable(
+                    onClick = {
+                        Log.d("READER_PAGES_LAYOUT", "Pager tapped - toggling menu")
+                        onMenuVisibility(
+                            ReaderEvent.OnMenuVisibility(
+                                show = !showMenu,
+                                fullscreenMode = fullscreenMode,
+                                saveCheckpoint = true,
+                                activity = activity
+                            )
+                        )
+                    }
+                )
+        ) { pageIndex ->
+            if (pageIndex < pages.size) {
+                val page = pages[pageIndex]
+                
+                // Создаем Compose Text вместо TextView
+                androidx.compose.material3.Text(
+                    text = page.content,
+                    style = TextStyle(
+                        color = fontColor,
+                        fontSize = fontSize,
+                        lineHeight = lineHeight,
+                        fontFamily = fontFamily.font,
+                        fontWeight = fontThickness.thickness,
+                        fontStyle = fontStyle,
+                        textAlign = when (textAlignment) {
+                            ua.acclorite.book_story.domain.reader.ReaderTextAlignment.START -> TextAlign.Start
+                            ua.acclorite.book_story.domain.reader.ReaderTextAlignment.CENTER -> TextAlign.Center
+                            ua.acclorite.book_story.domain.reader.ReaderTextAlignment.END -> TextAlign.End
+                            ua.acclorite.book_story.domain.reader.ReaderTextAlignment.JUSTIFY -> TextAlign.Justify
+                        },
+                        letterSpacing = letterSpacing,
+                        lineBreak = LineBreak.Paragraph,
+                        textIndent = TextIndent(paragraphIndentation)
+                    ),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            start = sidePadding,
+                            end = sidePadding,
+                            top = 32.dp,
+                            bottom = 32.dp
+                        )
+                )
+            }
         }
-
-        val viewHolder = PageViewHolder(textView)
-        viewHolderCache[viewType] = viewHolder
-        return viewHolder
-    }
-
-    override fun onBindViewHolder(holder: PageViewHolder, position: Int) {
-        Log.d("PAGE_ADAPTER", "Binding ViewHolder for position: $position")
-        if (position < pages.size) {
-            holder.bind(pages[position])
-        }
-    }
-
-    override fun getItemCount(): Int {
-        Log.d("PAGE_ADAPTER", "Item count: ${pages.size}")
-        return pages.size
     }
 }
 
-private class PageViewHolder(private val textView: TextView) : RecyclerView.ViewHolder(textView) {
-    fun bind(page: Page) {
-        Log.d("PAGE_VIEW_HOLDER", "Binding page content: ${page.content.take(50)}...")
-        textView.text = page.content
-    }
-}

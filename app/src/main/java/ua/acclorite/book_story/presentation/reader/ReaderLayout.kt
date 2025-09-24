@@ -260,7 +260,10 @@ fun ReaderLayout(
                         letterSpacing = letterSpacing,
                         sidePadding = sidePadding,
                         paragraphIndentation = paragraphIndentation,
-                        onPageChanged = { /* TODO: Handle page change */ }
+                        onPageChanged = { /* TODO: Handle page change */ },
+                        showMenu = showMenu,
+                        fullscreenMode = fullscreenMode,
+                        onMenuVisibility = menuVisibility
                     )
                 } else {
                     Log.d("READER_LAYOUT", "Pages calculation failed, showing fallback LazyColumn")
