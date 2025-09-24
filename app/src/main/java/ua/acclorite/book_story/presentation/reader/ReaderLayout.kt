@@ -263,7 +263,9 @@ fun ReaderLayout(
                         onPageChanged = { /* TODO: Handle page change */ },
                         showMenu = showMenu,
                         fullscreenMode = fullscreenMode,
-                        onMenuVisibility = menuVisibility
+                        onMenuVisibility = menuVisibility,
+                        highlightedReading = highlightedReading,
+                        highlightedReadingThickness = highlightedReadingThickness
                     )
                 } else {
                     Log.d("READER_LAYOUT", "Pages calculation failed, showing fallback LazyColumn")

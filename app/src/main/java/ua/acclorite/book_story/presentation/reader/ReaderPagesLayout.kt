@@ -18,9 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import ua.acclorite.book_story.presentation.core.util.noRippleClickable
 import ua.acclorite.book_story.presentation.core.components.common.SelectionContainer
+import ua.acclorite.book_story.presentation.core.components.common.StyledText
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.toFontFamily
@@ -54,7 +56,10 @@ fun ReaderPagesLayout(
     // Добавляем параметры для обработки тапов меню
     showMenu: Boolean,
     fullscreenMode: Boolean,
-    onMenuVisibility: (ReaderEvent.OnMenuVisibility) -> Unit
+    onMenuVisibility: (ReaderEvent.OnMenuVisibility) -> Unit,
+    // Параметры для подсветки чтения (как в обычном режиме)
+    highlightedReading: Boolean,
+    highlightedReadingThickness: FontWeight
 ) {
     Log.d("READER_PAGES_LAYOUT", "=== Creating ReaderPagesLayout ===")
     Log.d("READER_PAGES_LAYOUT", "Pages count: ${pages.size}")
@@ -100,26 +105,23 @@ fun ReaderPagesLayout(
             if (pageIndex < pages.size) {
                 val page = pages[pageIndex]
                 
-                // Создаем Compose Text вместо TextView
-                androidx.compose.material3.Text(
-                    text = page.content,
+                // Используем StyledText как в обычном режиме
+                StyledText(
+                    text = buildAnnotatedString { append(page.content) },
                     style = TextStyle(
-                        color = fontColor,
-                        fontSize = fontSize,
-                        lineHeight = lineHeight,
                         fontFamily = fontFamily.font,
                         fontWeight = fontThickness.thickness,
+                        textAlign = textAlignment.textAlignment,
+                        textIndent = TextIndent(firstLine = paragraphIndentation),
                         fontStyle = fontStyle,
-                        textAlign = when (textAlignment) {
-                            ua.acclorite.book_story.domain.reader.ReaderTextAlignment.START -> TextAlign.Start
-                            ua.acclorite.book_story.domain.reader.ReaderTextAlignment.CENTER -> TextAlign.Center
-                            ua.acclorite.book_story.domain.reader.ReaderTextAlignment.END -> TextAlign.End
-                            ua.acclorite.book_story.domain.reader.ReaderTextAlignment.JUSTIFY -> TextAlign.Justify
-                        },
                         letterSpacing = letterSpacing,
-                        lineBreak = LineBreak.Paragraph,
-                        textIndent = TextIndent(paragraphIndentation)
+                        fontSize = fontSize,
+                        lineHeight = lineHeight,
+                        color = fontColor,
+                        lineBreak = LineBreak.Paragraph
                     ),
+                    highlightText = highlightedReading,
+                    highlightThickness = highlightedReadingThickness,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(
