@@ -252,6 +252,8 @@ fun ReaderLayout(
                     ReaderPagesLayout(
                         pages = currentPages,
                         activity = activity,
+                        screenWidth = screenWidth,
+                        screenHeight = screenHeight,
                         fontFamily = fontFamily,
                         fontColor = fontColor,
                         lineHeight = lineHeight,

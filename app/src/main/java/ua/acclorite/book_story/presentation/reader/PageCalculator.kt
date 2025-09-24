@@ -62,13 +62,15 @@ class PageCalculator {
         
         // Учитываем все отступы: contentPadding + verticalPadding + sidePadding
         val contentPaddingPx = contentPadding.calculateTopPadding() + contentPadding.calculateBottomPadding()
-        val verticalPaddingPx = verticalPadding.value * 2
-        val sidePaddingPx = sidePadding.value * 2
+        val verticalPaddingPx = verticalPadding * 2
+        val sidePaddingPx = sidePadding * 2
         
-        val availableWidth = screenWidth - sidePaddingPx.toInt()
-        val availableHeight = screenHeight - contentPaddingPx.value.toInt() - verticalPaddingPx.toInt()
+        val availableWidth = screenWidth - sidePaddingPx.value.toInt()
+        val availableHeight = screenHeight - contentPaddingPx.value.toInt() - verticalPaddingPx.value.toInt()
         
         Log.d("PAGE_CALCULATOR", "Available space: ${availableWidth}x${availableHeight}")
+        
+        // Расчеты завершены
         
         Log.d("PAGE_CALCULATOR", "Creating TextPaint...")
         val textPaint = createTextPaint(
@@ -324,6 +326,8 @@ class PageCalculator {
             )
         }
         
+        // Страницы созданы
+        
         return pages
     }
     
@@ -467,6 +471,8 @@ class PageCalculator {
             isFirstPart = false
         }
         
+        // Абзац разбит на части
+        
         return brokenParts
     }
     
@@ -474,4 +480,5 @@ class PageCalculator {
         val readerText: ReaderText.Text,
         val height: Int
     )
+    
 }
