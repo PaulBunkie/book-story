@@ -81,7 +81,8 @@ class PageCalculator {
             availableHeight = availableHeight,
             fontSize = fontSize,
             lineHeight = lineHeight,
-            paragraphIndentation = paragraphIndentation
+            paragraphIndentation = paragraphIndentation,
+            paragraphHeight = paragraphHeight
         )
         
         Log.d("PAGE_CALCULATOR", "Pages created: ${pages.size}")
@@ -103,7 +104,8 @@ class PageCalculator {
         availableHeight: Int,
         fontSize: TextUnit,
         lineHeight: TextUnit,
-        paragraphIndentation: TextUnit
+        paragraphIndentation: TextUnit,
+        paragraphHeight: Dp
     ): List<Page> {
         val pages = mutableListOf<Page>()
         val currentPageContent = mutableListOf<ReaderText>()
@@ -114,7 +116,7 @@ class PageCalculator {
             when (readerText) {
                 is ReaderText.Text -> {
                     // Рассчитываем высоту абзаца
-                    val paragraphHeight = calculateParagraphHeight(
+                    val paragraphHeightPx = calculateParagraphHeight(
                         text = readerText.line.text,
                         textPaint = textPaint,
                         availableWidth = availableWidth,
@@ -124,9 +126,9 @@ class PageCalculator {
                     )
                     
                     // Если абзац помещается на текущую страницу
-                    if (currentPageHeight + paragraphHeight <= availableHeight) {
+                    if (currentPageHeight + paragraphHeightPx <= availableHeight) {
                         currentPageContent.add(readerText)
-                        currentPageHeight += paragraphHeight
+                        currentPageHeight += paragraphHeightPx
                     } else {
                         // Если страница не пустая, сохраняем её
                         if (currentPageContent.isNotEmpty()) {
@@ -143,24 +145,47 @@ class PageCalculator {
                         }
                         
                         // Если абзац слишком большой для одной страницы, разрываем его
-                        if (paragraphHeight > availableHeight) {
+                        if (paragraphHeightPx > availableHeight) {
+                            // Рассчитываем доступную высоту с учетом уже имеющегося контента
+                            val remainingHeight = availableHeight - currentPageHeight
                             val brokenParagraphs = breakParagraph(
                                 paragraph = readerText,
                                 textPaint = textPaint,
                                 availableWidth = availableWidth,
-                                availableHeight = availableHeight,
+                                availableHeight = remainingHeight,
                                 fontSize = fontSize,
                                 lineHeight = lineHeight,
-                                paragraphIndentation = paragraphIndentation
+                                paragraphIndentation = paragraphIndentation,
+                                paragraphHeight = paragraphHeight
                             )
                             
                             // Добавляем разорванные части
-                            for (brokenPart in brokenParagraphs) {
-                                if (currentPageHeight + brokenPart.height <= availableHeight) {
-                                    currentPageContent.add(brokenPart.readerText)
-                                    currentPageHeight += brokenPart.height
+                            for ((index, brokenPart) in brokenParagraphs.withIndex()) {
+                                if (index == 0) {
+                                    // Первая часть: пытаемся добавить на текущую страницу
+                                    if (currentPageHeight + brokenPart.height <= availableHeight) {
+                                        currentPageContent.add(brokenPart.readerText)
+                                        currentPageHeight += brokenPart.height
+                                    } else {
+                                        // Не помещается на текущую страницу
+                                        if (currentPageContent.isNotEmpty()) {
+                                            pages.add(
+                                                Page(
+                                                    content = currentPageContent.toList(),
+                                                    startIndex = pageIndex,
+                                                    endIndex = pageIndex
+                                                )
+                                            )
+                                            pageIndex++
+                                            currentPageContent.clear()
+                                            currentPageHeight = 0
+                                        }
+                                        // Добавляем первую часть на новую страницу
+                                        currentPageContent.add(brokenPart.readerText)
+                                        currentPageHeight = brokenPart.height
+                                    }
                                 } else {
-                                    // Сохраняем текущую страницу
+                                    // Последующие части: всегда начинают новую страницу
                                     if (currentPageContent.isNotEmpty()) {
                                         pages.add(
                                             Page(
@@ -173,7 +198,6 @@ class PageCalculator {
                                         currentPageContent.clear()
                                         currentPageHeight = 0
                                     }
-                                    
                                     // Добавляем часть на новую страницу
                                     currentPageContent.add(brokenPart.readerText)
                                     currentPageHeight = brokenPart.height
@@ -182,7 +206,7 @@ class PageCalculator {
                         } else {
                             // Абзац помещается на новую страницу
                             currentPageContent.add(readerText)
-                            currentPageHeight = paragraphHeight
+                            currentPageHeight = paragraphHeightPx
                         }
                     }
                 }
@@ -379,7 +403,8 @@ class PageCalculator {
         availableHeight: Int,
         fontSize: TextUnit,
         lineHeight: TextUnit,
-        paragraphIndentation: TextUnit
+        paragraphIndentation: TextUnit,
+        paragraphHeight: Dp
     ): List<BrokenParagraphPart> {
         val text = paragraph.line.text
         val staticLayout = StaticLayout.Builder
@@ -391,12 +416,20 @@ class PageCalculator {
         val brokenParts = mutableListOf<BrokenParagraphPart>()
         val totalLines = staticLayout.lineCount
         val lineHeightPx = (lineHeight.value).toInt()
-        val linesPerPage = availableHeight / lineHeightPx
+        val paragraphHeightPx = (paragraphHeight.value).toInt()
         
         var currentLine = 0
         var isFirstPart = true
         
         while (currentLine < totalLines) {
+            // Рассчитываем доступную высоту для этой части
+            val effectiveAvailableHeight = if (isFirstPart) {
+                availableHeight // Первая часть может использовать всю доступную высоту
+            } else {
+                availableHeight - paragraphHeightPx // Последующие части учитывают интервал
+            }
+            
+            val linesPerPage = effectiveAvailableHeight / lineHeightPx
             val endLine = minOf(currentLine + linesPerPage, totalLines)
             
             // Извлекаем текст для этой части
