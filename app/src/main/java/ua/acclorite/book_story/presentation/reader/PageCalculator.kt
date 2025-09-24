@@ -135,10 +135,13 @@ class PageCalculator {
                         paragraphIndentation = paragraphIndentation
                     )
                     
+                    // Не учитываем интервалы здесь - они добавляются в ReaderPagesLayout через Spacer
+                    val totalHeight = paragraphHeightPx
+                    
                     // Если абзац помещается на текущую страницу
-                    if (currentPageHeight + paragraphHeightPx <= availableHeight) {
+                    if (currentPageHeight + totalHeight <= availableHeight) {
                         currentPageContent.add(readerText)
-                        currentPageHeight += paragraphHeightPx
+                        currentPageHeight += totalHeight
                     } else {
                         // Если страница не пустая, сохраняем её
                         if (currentPageContent.isNotEmpty()) {
@@ -156,13 +159,11 @@ class PageCalculator {
                         
                         // Если абзац слишком большой для одной страницы, разрываем его
                         if (paragraphHeightPx > availableHeight) {
-                            // Рассчитываем доступную высоту с учетом уже имеющегося контента
-                            val remainingHeight = availableHeight - currentPageHeight
                             val brokenParagraphs = breakParagraph(
                                 paragraph = readerText,
                                 textPaint = textPaint,
                                 availableWidth = availableWidth,
-                                availableHeight = remainingHeight,
+                                availableHeight = availableHeight,
                                 fontSize = fontSize,
                                 lineHeight = lineHeight,
                                 paragraphIndentation = paragraphIndentation,
@@ -172,10 +173,12 @@ class PageCalculator {
                             // Добавляем разорванные части
                             for ((index, brokenPart) in brokenParagraphs.withIndex()) {
                                 if (index == 0) {
-                                    // Первая часть: пытаемся добавить на текущую страницу
-                                    if (currentPageHeight + brokenPart.height <= availableHeight) {
+                                    // Не учитываем интервалы здесь - они добавляются в ReaderPagesLayout
+                                    val firstPartHeight = brokenPart.height
+                                    
+                                    if (currentPageHeight + firstPartHeight <= availableHeight) {
                                         currentPageContent.add(brokenPart.readerText)
-                                        currentPageHeight += brokenPart.height
+                                        currentPageHeight += firstPartHeight
                                     } else {
                                         // Не помещается на текущую страницу
                                         if (currentPageContent.isNotEmpty()) {
@@ -230,9 +233,12 @@ class PageCalculator {
                         lineHeight = lineHeight
                     )
                     
-                    if (currentPageHeight + chapterHeight <= availableHeight) {
+                    // Не учитываем интервалы здесь - они добавляются в ReaderPagesLayout
+                    val totalHeight = chapterHeight
+                    
+                    if (currentPageHeight + totalHeight <= availableHeight) {
                         currentPageContent.add(readerText)
-                        currentPageHeight += chapterHeight
+                        currentPageHeight += totalHeight
                     } else {
                         // Сохраняем текущую страницу
                         if (currentPageContent.isNotEmpty()) {
@@ -262,9 +268,12 @@ class PageCalculator {
                         lineHeight = lineHeight
                     )
                     
-                    if (currentPageHeight + separatorHeight <= availableHeight) {
+                    // Не учитываем интервалы здесь - они добавляются в ReaderPagesLayout
+                    val totalHeight = separatorHeight
+                    
+                    if (currentPageHeight + totalHeight <= availableHeight) {
                         currentPageContent.add(readerText)
-                        currentPageHeight += separatorHeight
+                        currentPageHeight += totalHeight
                     } else {
                         // Сохраняем текущую страницу
                         if (currentPageContent.isNotEmpty()) {
@@ -289,10 +298,13 @@ class PageCalculator {
                 is ReaderText.Image -> {
                     val imageHeight = 200 // Фиксированная высота для изображений
                     
-                    if (currentPageHeight + imageHeight <= availableHeight) {
+                    // Не учитываем интервалы здесь - они добавляются в ReaderPagesLayout
+                    val totalHeight = imageHeight
+                    
+                    if (currentPageHeight + totalHeight <= availableHeight) {
                         currentPageContent.add(readerText)
-                        currentPageHeight += imageHeight
-            } else {
+                        currentPageHeight += totalHeight
+                    } else {
                         // Сохраняем текущую страницу
                         if (currentPageContent.isNotEmpty()) {
                             pages.add(
@@ -325,8 +337,6 @@ class PageCalculator {
                 )
             )
         }
-        
-        // Страницы созданы
         
         return pages
     }
@@ -372,6 +382,7 @@ class PageCalculator {
     ): Int {
         val staticLayout = StaticLayout.Builder
             .obtain(text, 0, text.length, textPaint, availableWidth)
+            .setAlignment(getAlignment(ReaderTextAlignment.START)) // Добавляем выравнивание
             .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
             .setIncludePad(false)
             .build()
@@ -387,6 +398,7 @@ class PageCalculator {
     ): Int {
         val staticLayout = StaticLayout.Builder
             .obtain(title, 0, title.length, textPaint, availableWidth)
+            .setAlignment(getAlignment(ReaderTextAlignment.START)) // Добавляем выравнивание
             .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
             .setIncludePad(false)
             .build()
@@ -402,6 +414,7 @@ class PageCalculator {
         val separatorText = "---"
         val staticLayout = StaticLayout.Builder
             .obtain(separatorText, 0, separatorText.length, textPaint, availableWidth)
+            .setAlignment(getAlignment(ReaderTextAlignment.START)) // Добавляем выравнивание
             .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
             .setIncludePad(false)
             .build()
@@ -421,39 +434,68 @@ class PageCalculator {
         val text = paragraph.line.text
         val staticLayout = StaticLayout.Builder
             .obtain(text, 0, text.length, textPaint, availableWidth)
+            .setAlignment(getAlignment(ReaderTextAlignment.START)) // Добавляем выравнивание
             .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
             .setIncludePad(false)
             .build()
         
         val brokenParts = mutableListOf<BrokenParagraphPart>()
         val totalLines = staticLayout.lineCount
-        val lineHeightPx = (lineHeight.value).toInt()
-        val paragraphHeightPx = (paragraphHeight.value).toInt()
         
         var currentLine = 0
         var isFirstPart = true
         
         while (currentLine < totalLines) {
-            // Рассчитываем доступную высоту для этой части
-            val effectiveAvailableHeight = if (isFirstPart) {
-                availableHeight // Первая часть может использовать всю доступную высоту
-            } else {
-                availableHeight - paragraphHeightPx // Последующие части учитывают интервал
+            // Используем всю доступную высоту - интервалы добавляются в ReaderPagesLayout
+            val effectiveAvailableHeight = availableHeight
+            
+            // Используем StaticLayout для точного расчета высоты
+            var endLine = currentLine + 1
+            var bestEndLine = endLine
+            
+            while (endLine <= totalLines) {
+                val startChar = staticLayout.getLineStart(currentLine)
+                val endChar = if (endLine >= totalLines) {
+                    text.length
+                } else {
+                    staticLayout.getLineStart(endLine)
+                }
+                
+                val partText = text.substring(startChar, endChar)
+                val partLayout = StaticLayout.Builder
+                    .obtain(partText, 0, partText.length, textPaint, availableWidth)
+                    .setAlignment(getAlignment(ReaderTextAlignment.START))
+                    .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
+                    .setIncludePad(false)
+                    .build()
+                
+                val partHeight = partLayout.height
+                
+                if (partHeight <= effectiveAvailableHeight) {
+                    bestEndLine = endLine
+                    endLine++
+                } else {
+                    break
+                }
             }
             
-            val linesPerPage = effectiveAvailableHeight / lineHeightPx
-            val endLine = minOf(currentLine + linesPerPage, totalLines)
-            
-            // Извлекаем текст для этой части
+            // Извлекаем текст для лучшей части
             val startChar = staticLayout.getLineStart(currentLine)
-            val endChar = if (endLine >= totalLines) {
+            val endChar = if (bestEndLine >= totalLines) {
                 text.length
             } else {
-                staticLayout.getLineStart(endLine)
+                staticLayout.getLineStart(bestEndLine)
             }
             
             val partText = text.substring(startChar, endChar)
-            val partHeight = (endLine - currentLine) * lineHeightPx
+            val partLayout = StaticLayout.Builder
+                .obtain(partText, 0, partText.length, textPaint, availableWidth)
+                .setAlignment(getAlignment(ReaderTextAlignment.START))
+                .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
+                .setIncludePad(false)
+                .build()
+            
+            val partHeight = partLayout.height
             
             // Создаем новый ReaderText.Text для этой части
             val partReaderText = ReaderText.Text(
@@ -467,11 +509,9 @@ class PageCalculator {
                 )
             )
             
-            currentLine = endLine
+            currentLine = bestEndLine
             isFirstPart = false
         }
-        
-        // Абзац разбит на части
         
         return brokenParts
     }
