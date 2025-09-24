@@ -66,6 +66,8 @@ fun ReaderPagesLayout(
             Log.d("READER_PAGES_LAYOUT", "Creating ViewPager2...")
             ViewPager2(context).apply {
                 orientation = ViewPager2.ORIENTATION_HORIZONTAL
+                
+                
                 Log.d("READER_PAGES_LAYOUT", "Creating PageAdapter...")
                 adapter = PageAdapter(
                     pages = pages,
@@ -142,6 +144,10 @@ private class PageAdapter(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
+            
+            // Настраиваем TextView для выделения текста
+            setTextIsSelectable(true)
+            movementMethod = android.text.method.LinkMovementMethod.getInstance()
         }
 
         val viewHolder = PageViewHolder(textView)
