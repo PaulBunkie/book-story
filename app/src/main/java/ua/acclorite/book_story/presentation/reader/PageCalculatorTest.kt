@@ -49,7 +49,8 @@ object PageCalculatorTest {
             letterSpacing = 0.sp,
             paragraphIndentation = 0.sp,
             contentPadding = androidx.compose.foundation.layout.PaddingValues(),
-            verticalPadding = 0.dp
+            verticalPadding = 0.dp,
+            density = 3.0f // Typical phone density
         )
         
         Log.d("PAGE_CALCULATOR_TEST", "Calculated ${pages.size} pages")

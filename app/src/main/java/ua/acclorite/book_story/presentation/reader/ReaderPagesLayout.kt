@@ -311,7 +311,8 @@ private fun calculateTextHeight(
 }
 
 private fun getLineSpacingMultiplier(lineHeight: TextUnit, fontSize: TextUnit): Float {
-    return (lineHeight.value - fontSize.value) / fontSize.value
+    val ratio = lineHeight.value / fontSize.value
+    return if (ratio > 0f) ratio else 1f
 }
 
 private fun getAlignment(textAlignment: ReaderTextAlignment): Layout.Alignment {

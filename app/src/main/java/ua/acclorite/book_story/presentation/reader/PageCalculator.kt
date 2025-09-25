@@ -54,35 +54,43 @@ class PageCalculator {
         letterSpacing: TextUnit,
         paragraphIndentation: TextUnit,
         contentPadding: PaddingValues,
-        verticalPadding: Dp
+        verticalPadding: Dp,
+        density: Float
     ): List<Page> = withContext(Dispatchers.Default) {
         Log.d("PAGE_CALCULATOR", "=== Starting page calculation with paragraphs ===")
         Log.d("PAGE_CALCULATOR", "Text items count: ${text.size}")
         Log.d("PAGE_CALCULATOR", "Screen: ${screenWidth}x${screenHeight}")
         
         // Учитываем все отступы: contentPadding + verticalPadding + sidePadding
-        val contentPaddingPx = contentPadding.calculateTopPadding() + contentPadding.calculateBottomPadding()
-        val verticalPaddingPx = verticalPadding * 2
-        val sidePaddingPx = sidePadding * 2
+        val contentPaddingPx = contentPadding.calculateTopPadding().value + contentPadding.calculateBottomPadding().value
+        val verticalPaddingPx = verticalPadding.value * 2 * density
+        val sidePaddingPx = sidePadding.value * 2 * density
         
-        val availableWidth = screenWidth - sidePaddingPx.value.toInt()
+        val availableWidth = (screenWidth - sidePaddingPx).toInt()
         // Добавляем коэффициент безопасности для учета Spacer между элементами
         val safetyMargin = 0.95f // 95% от доступной высоты
-        val availableHeight = ((screenHeight - contentPaddingPx.value.toInt() - verticalPaddingPx.value.toInt()) * safetyMargin).toInt()
+        val availableHeight = ((screenHeight - contentPaddingPx - verticalPaddingPx) * safetyMargin).toInt()
         
         Log.d("PAGE_CALCULATOR", "Available space: ${availableWidth}x${availableHeight}")
+        Log.d("PAGE_CALCULATOR", "Screen dimensions: ${screenWidth}x${screenHeight}")
+        Log.d("PAGE_CALCULATOR", "Side padding: ${sidePadding.value}dp = ${sidePaddingPx}px")
+        Log.d("PAGE_CALCULATOR", "Content padding: ${contentPaddingPx}px")
+        Log.d("PAGE_CALCULATOR", "Vertical padding: ${verticalPaddingPx}px")
+        Log.d("PAGE_CALCULATOR", "Density: ${density}")
         
         // Расчеты завершены
         
         Log.d("PAGE_CALCULATOR", "Creating TextPaint...")
         Log.d("PAGE_CALCULATOR", "Font parameters: fontSize=${fontSize.value}sp, lineHeight=${lineHeight.value}sp, letterSpacing=${letterSpacing.value}em")
+        Log.d("PAGE_CALCULATOR", "Density parameter: ${density}")
         val textPaint = createTextPaint(
             fontSize = fontSize,
             fontFamily = fontFamily,
             fontThickness = fontThickness,
             fontStyle = fontStyle,
             textAlignment = textAlignment,
-            letterSpacing = letterSpacing
+            letterSpacing = letterSpacing,
+            density = density
         )
         Log.d("PAGE_CALCULATOR", "TextPaint created successfully")
 
@@ -95,7 +103,8 @@ class PageCalculator {
             fontSize = fontSize,
             lineHeight = lineHeight,
             paragraphIndentation = paragraphIndentation,
-            paragraphHeight = paragraphHeight
+            paragraphHeight = paragraphHeight,
+            density = density
         )
         
         Log.d("PAGE_CALCULATOR", "Pages created: ${pages.size}")
@@ -118,13 +127,14 @@ class PageCalculator {
         fontSize: TextUnit,
         lineHeight: TextUnit,
         paragraphIndentation: TextUnit,
-        paragraphHeight: Dp
+        paragraphHeight: Dp,
+        density: Float
     ): List<Page> {
         val pages = mutableListOf<Page>()
         val currentPageContent = mutableListOf<ReaderText>()
         var currentPageHeight = 0
         var pageIndex = 0
-        val paragraphSpacingPx = paragraphHeight.value.toInt()
+        val paragraphSpacingPx = (paragraphHeight.value * density).toInt()
         
         for ((originalIndex, readerText) in text.withIndex()) {
             Log.d("PAGE_CALCULATOR_DEBUG", "Processing element $originalIndex: ${readerText::class.simpleName}")
@@ -137,7 +147,8 @@ class PageCalculator {
                         availableWidth = availableWidth,
                         fontSize = fontSize,
                         lineHeight = lineHeight,
-                        paragraphIndentation = paragraphIndentation
+                        paragraphIndentation = paragraphIndentation,
+                        density = density
                     )
                     
                     Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : Position ${currentPageContent.size} : Height ${paragraphHeightPx}px : Remaining ${availableHeight - currentPageHeight}px")
@@ -182,7 +193,8 @@ class PageCalculator {
                                 fontSize = fontSize,
                                 lineHeight = lineHeight,
                                 paragraphIndentation = paragraphIndentation,
-                                paragraphHeight = paragraphHeight
+                                paragraphHeight = paragraphHeight,
+                                density = density
                             )
                             
                             // Добавляем разорванные части
@@ -235,7 +247,8 @@ class PageCalculator {
                         textPaint = textPaint,
                         availableWidth = availableWidth,
                         fontSize = fontSize,
-                        lineHeight = lineHeight
+                        lineHeight = lineHeight,
+                        density = density
                     )
                     
                     // Учитываем интервалы между элементами
@@ -274,7 +287,8 @@ class PageCalculator {
                         textPaint = textPaint,
                         availableWidth = availableWidth,
                         fontSize = fontSize,
-                        lineHeight = lineHeight
+                        lineHeight = lineHeight,
+                        density = density
                     )
                     
                     // Учитываем интервалы между элементами
@@ -364,15 +378,18 @@ class PageCalculator {
         fontThickness: ReaderFontThickness,
         fontStyle: FontStyle,
         textAlignment: ReaderTextAlignment,
-        letterSpacing: TextUnit
+        letterSpacing: TextUnit,
+        density: Float
     ): TextPaint {
         return TextPaint().apply {
-            this.textSize = fontSize.value
+            this.textSize = fontSize.value * density // Convert sp to px
             this.typeface = Typeface.DEFAULT // TODO: Implement proper font conversion
             this.isFakeBoldText = fontThickness == ReaderFontThickness.MEDIUM
             this.textSkewX = if (fontStyle == FontStyle.Italic) -0.25f else 0f
-            this.letterSpacing = letterSpacing.value.toFloat()
+            this.letterSpacing = letterSpacing.value.toFloat() * fontSize.value * density // Convert em to px
             this.isAntiAlias = true
+            
+            Log.d("PAGE_CALCULATOR", "TextPaint created: textSize=${this.textSize}px, letterSpacing=${this.letterSpacing}px")
         }
     }
     
@@ -386,7 +403,8 @@ class PageCalculator {
     }
     
     private fun getLineSpacingMultiplier(lineHeight: TextUnit, fontSize: TextUnit): Float {
-        return (lineHeight.value - fontSize.value) / fontSize.value
+        val ratio = lineHeight.value / fontSize.value
+        return if (ratio > 0f) ratio else 1f
     }
     
     private fun calculateParagraphHeight(
@@ -395,11 +413,14 @@ class PageCalculator {
         availableWidth: Int,
         fontSize: TextUnit,
         lineHeight: TextUnit,
-        paragraphIndentation: TextUnit
+        paragraphIndentation: TextUnit,
+        density: Float
     ): Int {
         // Добавляем отступ первой строки к тексту (как в StyledText)
         val indentedText = if (paragraphIndentation.value > 0) {
-            " ".repeat((paragraphIndentation.value / fontSize.value).toInt()) + text
+            val indentPx = paragraphIndentation.value * density
+            val fontSizePx = fontSize.value * density
+            " ".repeat((indentPx / fontSizePx).toInt()) + text
         } else {
             text
         }
@@ -407,6 +428,8 @@ class PageCalculator {
         val lineSpacingMultiplier = getLineSpacingMultiplier(lineHeight, fontSize)
         Log.d("PAGE_CALCULATOR", "StaticLayout params: textLength=${indentedText.length}, availableWidth=$availableWidth, lineSpacingMultiplier=$lineSpacingMultiplier")
         Log.d("PAGE_CALCULATOR", "TextPaint params: textSize=${textPaint.textSize}, letterSpacing=${textPaint.letterSpacing}")
+        Log.d("PAGE_CALCULATOR", "Original text: '${text.take(100)}...'")
+        Log.d("PAGE_CALCULATOR", "Indented text: '${indentedText.take(100)}...'")
         
         val staticLayout = StaticLayout.Builder
             .obtain(indentedText, 0, indentedText.length, textPaint, availableWidth)
@@ -416,6 +439,15 @@ class PageCalculator {
             .build()
         
         Log.d("PAGE_CALCULATOR", "StaticLayout result: height=${staticLayout.height}, lineCount=${staticLayout.lineCount}")
+        
+        // Debug: Check line details
+        for (i in 0 until staticLayout.lineCount) {
+            val start = staticLayout.getLineStart(i)
+            val end = staticLayout.getLineEnd(i)
+            val lineText = indentedText.substring(start, end)
+            Log.d("PAGE_CALCULATOR", "Line $i: '$lineText' (chars $start-$end)")
+        }
+        
         return staticLayout.height
     }
     
@@ -424,7 +456,8 @@ class PageCalculator {
         textPaint: TextPaint,
         availableWidth: Int,
         fontSize: TextUnit,
-        lineHeight: TextUnit
+        lineHeight: TextUnit,
+        density: Float
     ): Int {
         val staticLayout = StaticLayout.Builder
             .obtain(title, 0, title.length, textPaint, availableWidth)
@@ -432,14 +465,15 @@ class PageCalculator {
             .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
             .setIncludePad(false)
             .build()
-        return staticLayout.height + (lineHeight.value * 2).toInt() // Дополнительное пространство после заголовка
+        return staticLayout.height + (lineHeight.value * density * 2).toInt() // Дополнительное пространство после заголовка
     }
     
     private fun calculateSeparatorHeight(
         textPaint: TextPaint,
         availableWidth: Int,
         fontSize: TextUnit,
-        lineHeight: TextUnit
+        lineHeight: TextUnit,
+        density: Float
     ): Int {
         val separatorText = "---"
         val staticLayout = StaticLayout.Builder
@@ -448,7 +482,7 @@ class PageCalculator {
             .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
             .setIncludePad(false)
             .build()
-        return staticLayout.height + (lineHeight.value * 2).toInt() // Дополнительное пространство
+        return staticLayout.height + (lineHeight.value * density * 2).toInt() // Дополнительное пространство
     }
     
     private fun breakParagraph(
@@ -459,7 +493,8 @@ class PageCalculator {
         fontSize: TextUnit,
         lineHeight: TextUnit,
         paragraphIndentation: TextUnit,
-        paragraphHeight: Dp
+        paragraphHeight: Dp,
+        density: Float
     ): List<BrokenParagraphPart> {
         val text = paragraph.line.text
         val staticLayout = StaticLayout.Builder
@@ -471,7 +506,7 @@ class PageCalculator {
         
         val brokenParts = mutableListOf<BrokenParagraphPart>()
         val totalLines = staticLayout.lineCount
-        val paragraphSpacingPx = paragraphHeight.value.toInt()
+        val paragraphSpacingPx = (paragraphHeight.value * density).toInt()
         
         var currentLine = 0
         var isFirstPart = true
