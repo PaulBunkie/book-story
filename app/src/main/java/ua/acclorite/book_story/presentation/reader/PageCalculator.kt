@@ -167,29 +167,22 @@ class PageCalculator {
                         currentPageHeight += totalHeight
                     } else {
                         Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : DOESN'T FIT! Need ${totalHeight}px, have ${availableHeight - currentPageHeight}px")
-                        // Если страница не пустая, сохраняем её
-                        if (currentPageContent.isNotEmpty()) {
-                            Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : SAVING with ${currentPageContent.size} elements")
-                            pages.add(
-                                Page(
-                                    content = currentPageContent.toList(),
-                                    startIndex = pageIndex,
-                                    endIndex = pageIndex
-                                )
-                            )
-                            pageIndex++
-                            currentPageContent.clear()
-                            currentPageHeight = 0
-                        }
                         
-                        // Если абзац слишком большой для одной страницы, разрываем его
-                        if (paragraphHeightPx > availableHeight) {
+                        // Проверяем, нужно ли разрывать параграф ПЕРЕД сохранением страницы
+                        val currentRemainingSpace = availableHeight - currentPageHeight
+                        val singleLineHeight = (fontSize.value * density * getLineSpacingMultiplier(lineHeight, fontSize)).toInt()
+                        
+                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Breaking check: paragraphHeight=${paragraphHeightPx}px, currentRemainingSpace=${currentRemainingSpace}px, singleLineHeight=${singleLineHeight}px")
+                        
+                        if (paragraphHeightPx > currentRemainingSpace && paragraphHeightPx > singleLineHeight) {
                             Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : BREAKING paragraph $originalIndex : Text: ${readerText.line.text.take(50)}...")
+                            Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Current remaining space: ${currentRemainingSpace}px, paragraph height: ${paragraphHeightPx}px")
                             val brokenParagraphs = breakParagraph(
                                 paragraph = readerText,
                                 textPaint = textPaint,
                                 availableWidth = availableWidth,
                                 availableHeight = availableHeight,
+                                remainingSpace = currentRemainingSpace,
                                 fontSize = fontSize,
                                 lineHeight = lineHeight,
                                 paragraphIndentation = paragraphIndentation,
@@ -199,22 +192,38 @@ class PageCalculator {
                             
                             // Добавляем разорванные части
                             for ((index, brokenPart) in brokenParagraphs.withIndex()) {
-                                // Для всех частей разорванного абзаца используем одинаковую логику
-                                val partHeight = if (currentPageContent.isNotEmpty()) {
-                                    brokenPart.height + paragraphSpacingPx
+                                if (index == 0) {
+                                    // Проверяем, помещается ли первая часть на текущую страницу
+                                    val partHeight = brokenPart.height + paragraphSpacingPx
+                                    if (currentPageHeight + partHeight <= availableHeight) {
+                                        // Первая часть помещается на текущую страницу
+                                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Adding first broken part to CURRENT page: ${brokenPart.readerText.line.text.take(30)}...")
+                                        currentPageContent.add(brokenPart.readerText)
+                                        currentPageHeight += partHeight
+                                    } else {
+                                        // Первая часть не помещается, сохраняем текущую страницу
+                                        if (currentPageContent.isNotEmpty()) {
+                                            Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : SAVING before first broken part")
+                                            pages.add(
+                                                Page(
+                                                    content = currentPageContent.toList(),
+                                                    startIndex = pageIndex,
+                                                    endIndex = pageIndex
+                                                )
+                                            )
+                                            pageIndex++
+                                            currentPageContent.clear()
+                                            currentPageHeight = 0
+                                        }
+                                        // Добавляем первую часть на новую страницу
+                                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Adding first broken part to NEW page: ${brokenPart.readerText.line.text.take(30)}...")
+                                        currentPageContent.add(brokenPart.readerText)
+                                        currentPageHeight = brokenPart.height
+                                    }
                                 } else {
-                                    brokenPart.height
-                                }
-                                
-                                if (currentPageHeight + partHeight <= availableHeight) {
-                                    Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Broken part $index FITS! Text: ${brokenPart.readerText.line.text.take(30)}...")
-                                    currentPageContent.add(brokenPart.readerText)
-                                    currentPageHeight += partHeight
-                                } else {
-                                    Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Broken part $index DOESN'T FIT!")
-                                    // Не помещается на текущую страницу
+                                    // Остальные части добавляются на новые страницы
                                     if (currentPageContent.isNotEmpty()) {
-                                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : SAVING broken parts with ${currentPageContent.size} elements")
+                                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : SAVING before adding broken part ${index}")
                                         pages.add(
                                             Page(
                                                 content = currentPageContent.toList(),
@@ -227,12 +236,28 @@ class PageCalculator {
                                         currentPageHeight = 0
                                     }
                                     // Добавляем часть на новую страницу
-                                    Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Adding broken part to NEW page")
+                                    Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Adding broken part ${index} to NEW page: ${brokenPart.readerText.line.text.take(30)}...")
                                     currentPageContent.add(brokenPart.readerText)
                                     currentPageHeight = brokenPart.height
                                 }
                             }
                         } else {
+                            // Абзац не нужно разрывать, переносим целиком на новую страницу
+                            // Если страница не пустая, сохраняем её
+                            if (currentPageContent.isNotEmpty()) {
+                                Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : SAVING with ${currentPageContent.size} elements")
+                                pages.add(
+                                    Page(
+                                        content = currentPageContent.toList(),
+                                        startIndex = pageIndex,
+                                        endIndex = pageIndex
+                                    )
+                                )
+                                pageIndex++
+                                currentPageContent.clear()
+                                currentPageHeight = 0
+                            }
+                            
                             // Абзац помещается на новую страницу
                             Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex FITS on NEW page! Text: ${readerText.line.text.take(30)}...")
                             currentPageContent.add(readerText)
@@ -490,6 +515,7 @@ class PageCalculator {
         textPaint: TextPaint,
         availableWidth: Int,
         availableHeight: Int,
+        remainingSpace: Int,
         fontSize: TextUnit,
         lineHeight: TextUnit,
         paragraphIndentation: TextUnit,
@@ -512,10 +538,9 @@ class PageCalculator {
         var isFirstPart = true
         
         while (currentLine < totalLines) {
-            // Рассчитываем доступную высоту для этой части
-            // Для всех частей разорванного абзаца используем полную доступную высоту,
-            // так как интервалы между частями одного абзаца не нужны
-            val effectiveAvailableHeight = availableHeight
+            // Для первой части используем оставшееся место на текущей странице
+            // Для последующих частей используем полную высоту страницы
+            val effectiveAvailableHeight = if (currentLine == 0) remainingSpace else availableHeight
             
             // Используем StaticLayout для точного расчета высоты
             var endLine = currentLine + 1
