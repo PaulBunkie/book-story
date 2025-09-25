@@ -138,12 +138,14 @@ fun ReaderPagesLayout(
                            val verticalPaddingPx = verticalPadding * 2
                            val sidePaddingPx = sidePadding * 2
                            val availableWidth = screenWidth - sidePaddingPx.value.toInt()
-                           val availableHeight = screenHeight - contentPaddingPx.value.toInt() - verticalPaddingPx.value.toInt()
+                           // Применяем тот же коэффициент безопасности, что и в PageCalculator
+                           val safetyMargin = 0.95f // 95% от доступной высоты
+                           val availableHeight = ((screenHeight - contentPaddingPx.value.toInt() - verticalPaddingPx.value.toInt()) * safetyMargin).toInt()
                            
                            // Создаем TextPaint для расчета высот
                            val textPaint = TextPaint().apply {
                                textSize = fontSize.value
-                               typeface = Typeface.DEFAULT
+                               typeface = Typeface.DEFAULT // TODO: Implement proper font conversion
                                isFakeBoldText = fontThickness == ReaderFontThickness.MEDIUM
                                textSkewX = if (fontStyle == FontStyle.Italic) -0.25f else 0f
                                this.letterSpacing = letterSpacing.value.toFloat()
@@ -152,7 +154,7 @@ fun ReaderPagesLayout(
                            
                            Log.d("PAGE_RENDER_DEBUG", "=== Page $pageIndex Render Analysis ===")
                            Log.d("PAGE_RENDER_DEBUG", "Screen: ${screenWidth}x${screenHeight}")
-                           Log.d("PAGE_RENDER_DEBUG", "Available: ${availableWidth}x${availableHeight}")
+                           Log.d("PAGE_RENDER_DEBUG", "Available: ${availableWidth}x${availableHeight} (with ${(safetyMargin * 100).toInt()}% safety margin)")
                            Log.d("PAGE_RENDER_DEBUG", "Elements: ${page.content.size}")
                            
                            for ((elementIndex, readerText) in page.content.withIndex()) {
@@ -287,11 +289,18 @@ private fun calculateTextHeight(
     paragraphIndentation: TextUnit,
     textAlignment: ReaderTextAlignment
 ): Int {
+    // Добавляем отступ первой строки к тексту (как в StyledText)
+    val indentedText = if (paragraphIndentation.value > 0) {
+        " ".repeat((paragraphIndentation.value / fontSize.value).toInt()) + text
+    } else {
+        text
+    }
+    
     val lineHeightPx = lineHeight.value.toInt()
     val lineSpacingMultiplier = getLineSpacingMultiplier(lineHeight, fontSize)
     
     val staticLayout = StaticLayout.Builder.obtain(
-        text, 0, text.length, textPaint, availableWidth
+        indentedText, 0, indentedText.length, textPaint, availableWidth
     )
         .setAlignment(getAlignment(textAlignment))
         .setLineSpacing(0f, lineSpacingMultiplier)
@@ -302,7 +311,7 @@ private fun calculateTextHeight(
 }
 
 private fun getLineSpacingMultiplier(lineHeight: TextUnit, fontSize: TextUnit): Float {
-    return lineHeight.value / fontSize.value
+    return (lineHeight.value - fontSize.value) / fontSize.value
 }
 
 private fun getAlignment(textAlignment: ReaderTextAlignment): Layout.Alignment {

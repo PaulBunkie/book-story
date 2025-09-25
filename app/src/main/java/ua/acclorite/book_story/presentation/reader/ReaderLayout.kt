@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import android.util.Log
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -182,8 +183,9 @@ fun ReaderLayout(
             if (horizontalGesture == ReaderHorizontalGesture.PAGES) {
                 // Pages режим
                 val configuration = LocalConfiguration.current
-                val screenWidth = configuration.screenWidthDp
-                val screenHeight = configuration.screenHeightDp
+                val density = LocalDensity.current
+                val screenWidth = (configuration.screenWidthDp * density.density).toInt()
+                val screenHeight = (configuration.screenHeightDp * density.density).toInt()
                 
                 var pages by remember(horizontalGesture) { mutableStateOf<List<Page>?>(null) }
                 var isLoadingPages by remember(horizontalGesture) { mutableStateOf(true) }
