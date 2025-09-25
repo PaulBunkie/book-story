@@ -68,7 +68,7 @@ class PageCalculator {
         
         val availableWidth = (screenWidth - sidePaddingPx).toInt()
         // Добавляем коэффициент безопасности для учета Spacer между элементами
-        val safetyMargin = 0.95f // 95% от доступной высоты
+        val safetyMargin = 1.00f // 100% от доступной высоты
         val availableHeight = ((screenHeight - contentPaddingPx - verticalPaddingPx) * safetyMargin).toInt()
         
         Log.d("PAGE_CALCULATOR", "Available space: ${availableWidth}x${availableHeight}")
