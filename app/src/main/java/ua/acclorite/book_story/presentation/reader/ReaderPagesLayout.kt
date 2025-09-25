@@ -11,8 +11,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.Image
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -142,13 +144,13 @@ fun ReaderPagesLayout(
                            val safetyMargin = 0.95f // 95% от доступной высоты
                            val availableHeight = ((screenHeight - contentPaddingPx.value.toInt() - verticalPaddingPx.value.toInt()) * safetyMargin).toInt()
                            
-                           // Создаем TextPaint для расчета высот
+                           // Создаем TextPaint для расчета высот (синхронизировано с PageCalculator)
                            val textPaint = TextPaint().apply {
-                               textSize = fontSize.value
+                               textSize = fontSize.value * density.density // Convert sp to px
                                typeface = Typeface.DEFAULT // TODO: Implement proper font conversion
                                isFakeBoldText = fontThickness == ReaderFontThickness.MEDIUM
                                textSkewX = if (fontStyle == FontStyle.Italic) -0.25f else 0f
-                               this.letterSpacing = letterSpacing.value.toFloat()
+                               this.letterSpacing = letterSpacing.value.toFloat() * fontSize.value * density.density // Convert em to px
                                isAntiAlias = true
                            }
                            
@@ -186,19 +188,24 @@ fun ReaderPagesLayout(
                                        Log.d("PAGE_RENDER_DEBUG", "  Text: ${readerText.line.text.take(50)}...")
                                        Log.d("PAGE_RENDER_DEBUG", "  Height: ${textHeight}px")
                                        
+                                       // Проверяем, является ли это разорванным параграфом
+                                       // \u200B = продолжение, \u200C = первая часть
+                                       val isBrokenParagraph = readerText.line.text.startsWith("\u200B") || readerText.line.text.startsWith("\u200C")
+                                       val isContinuation = readerText.line.text.startsWith("\u200B")
+                                       
                                        StyledText(
                                            text = readerText.line,
                                            style = TextStyle(
                                                fontFamily = fontFamily.font,
                                                fontWeight = fontThickness.thickness,
                                                textAlign = textAlignment.textAlignment,
-                                               textIndent = TextIndent(firstLine = paragraphIndentation),
+                                               textIndent = if (isContinuation) TextIndent.None else TextIndent(firstLine = paragraphIndentation),
                                                fontStyle = fontStyle,
                                                letterSpacing = letterSpacing,
                                                fontSize = fontSize,
                                                lineHeight = lineHeight,
                                                color = fontColor,
-                                               lineBreak = LineBreak.Paragraph
+                                               lineBreak = if (isBrokenParagraph) LineBreak.Simple else LineBreak.Paragraph
                                            ),
                                            highlightText = highlightedReading,
                                            highlightThickness = highlightedReadingThickness,
@@ -207,20 +214,34 @@ fun ReaderPagesLayout(
                                    }
                                    
                                    is ReaderText.Chapter -> {
-                                       Text(
-                                           text = readerText.title,
-                                           style = TextStyle(
-                                               fontFamily = fontFamily.font,
-                                               fontWeight = FontWeight.Bold,
-                                               textAlign = textAlignment.textAlignment,
-                                               fontSize = fontSize * 1.2f,
-                                               lineHeight = lineHeight * 1.2f,
-                                               color = fontColor
-                                           ),
-                                           modifier = Modifier
-                                               .fillMaxWidth()
-                                               .padding(vertical = 16.dp)
-                                       )
+                                       // Рендерим главу как в Scroll режиме - с полоской
+                                       Column(
+                                           modifier = Modifier.fillMaxWidth()
+                                       ) {
+                                           Spacer(modifier = Modifier.height(22.dp))
+                                           
+                                           Text(
+                                               text = readerText.title,
+                                               style = TextStyle(
+                                                   fontFamily = fontFamily.font,
+                                                   fontWeight = FontWeight.Bold,
+                                                   textAlign = textAlignment.textAlignment,
+                                                   fontSize = fontSize * 1.2f,
+                                                   lineHeight = lineHeight * 1.2f,
+                                                   color = fontColor
+                                               ),
+                                               modifier = Modifier
+                                                   .fillMaxWidth()
+                                                   .padding(horizontal = sidePadding)
+                                           )
+                                           
+                                           Spacer(modifier = Modifier.height(16.dp))
+                                           HorizontalDivider(
+                                               color = fontColor.copy(0.4f),
+                                               modifier = Modifier.padding(horizontal = sidePadding)
+                                           )
+                                           Spacer(modifier = Modifier.height(16.dp))
+                                       }
                                    }
                                    
                                    is ReaderText.Separator -> {
@@ -241,20 +262,22 @@ fun ReaderPagesLayout(
                                    }
                                    
                                    is ReaderText.Image -> {
-                                       // TODO: Реализовать отображение изображений
-                                       Text(
-                                           text = "[Изображение]",
-                                           style = TextStyle(
-                                               fontFamily = fontFamily.font,
-                                               fontWeight = fontThickness.thickness,
-                                               textAlign = TextAlign.Center,
-                                               fontSize = fontSize,
-                                               lineHeight = lineHeight,
-                                               color = fontColor
-                                           ),
+                                       // Рассчитываем высоту изображения
+                                       val imageHeight = 200 // Фиксированная высота для изображений
+                                       totalCalculatedHeight += imageHeight + paragraphHeight.value.toInt()
+                                       
+                                       Log.d("PAGE_RENDER_DEBUG", "Element $elementIndex (Image):")
+                                       Log.d("PAGE_RENDER_DEBUG", "  Height: ${imageHeight}px")
+                                       
+                                       // Рендерим реальное изображение
+                                       Image(
+                                           bitmap = readerText.imageBitmap,
+                                           contentDescription = "Изображение из книги",
                                            modifier = Modifier
                                                .fillMaxWidth()
-                                               .padding(vertical = 16.dp)
+                                               .height(imageHeight.dp)
+                                               .padding(vertical = 16.dp),
+                                           contentScale = androidx.compose.ui.layout.ContentScale.Fit
                                        )
                                    }
                                }
@@ -279,7 +302,7 @@ fun ReaderPagesLayout(
     }
 }
 
-// Функция для расчета высоты текста (копия из PageCalculator)
+// Функция для расчета высоты текста (синхронизирована с PageCalculator)
 private fun calculateTextHeight(
     text: String,
     textPaint: TextPaint,
@@ -291,12 +314,13 @@ private fun calculateTextHeight(
 ): Int {
     // Добавляем отступ первой строки к тексту (как в StyledText)
     val indentedText = if (paragraphIndentation.value > 0) {
-        " ".repeat((paragraphIndentation.value / fontSize.value).toInt()) + text
+        val indentPx = paragraphIndentation.value * textPaint.textSize / fontSize.value
+        val fontSizePx = fontSize.value
+        " ".repeat((indentPx / fontSizePx).toInt()) + text
     } else {
         text
     }
     
-    val lineHeightPx = lineHeight.value.toInt()
     val lineSpacingMultiplier = getLineSpacingMultiplier(lineHeight, fontSize)
     
     val staticLayout = StaticLayout.Builder.obtain(
