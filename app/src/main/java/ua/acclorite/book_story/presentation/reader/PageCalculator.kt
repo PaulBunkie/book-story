@@ -30,6 +30,7 @@ import kotlin.math.ceil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.util.Log
+import ua.acclorite.book_story.presentation.reader.TextMeasurementUtils
 
 data class Page(
     val content: List<ReaderText>,
@@ -85,7 +86,7 @@ class PageCalculator {
         Log.d("PAGE_CALCULATOR", "Creating TextPaint...")
         Log.d("PAGE_CALCULATOR", "Font parameters: fontSize=${fontSize.value}sp, lineHeight=${lineHeight.value}sp, letterSpacing=${letterSpacing.value}em")
         Log.d("PAGE_CALCULATOR", "Density parameter: ${density}")
-        val textPaint = createTextPaint(
+        val textPaint = TextMeasurementUtils.createTextPaint(
             fontSize = fontSize,
             fontFamily = fontFamily,
             fontThickness = fontThickness,
@@ -143,14 +144,14 @@ class PageCalculator {
             when (readerText) {
                 is ReaderText.Text -> {
                     // Рассчитываем высоту абзаца
-                    val paragraphHeightPx = calculateParagraphHeight(
+                    val paragraphHeightPx = TextMeasurementUtils.calculateTextHeight(
                         text = readerText.line.text,
                         textPaint = textPaint,
                         availableWidth = availableWidth,
                         fontSize = fontSize,
                         lineHeight = lineHeight,
                         paragraphIndentation = paragraphIndentation,
-                        density = density
+                        textAlignment = ReaderTextAlignment.START
                     )
                     
                     Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : Position ${currentPageContent.size} : Height ${paragraphHeightPx}px : Remaining ${availableHeight - currentPageHeight}px")
@@ -163,18 +164,24 @@ class PageCalculator {
                     }
                     
                     val currentRemainingSpace = availableHeight - currentPageHeight
-                    val singleLineHeight = (fontSize.value * density * getLineSpacingMultiplier(lineHeight, fontSize)).toInt()
+                    val singleLineHeight = (fontSize.value * density * TextMeasurementUtils.getLineSpacingMultiplier(lineHeight, fontSize)).toInt()
                     
                     Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : Need ${totalHeight}px, have ${currentRemainingSpace}px remaining")
                     
-                    // Если абзац помещается на текущую страницу целиком
-                    if (currentPageHeight + totalHeight <= availableHeight) {
-                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : FITS COMPLETELY! Text: ${readerText.line.text.take(30)}...")
-                        currentPageContent.add(readerText)
-                        currentPageHeight += totalHeight
-                    }
-                    // Если в оставшемся месте может поместиться хотя бы одна строка - разбиваем параграф
-                    else if (currentRemainingSpace >= singleLineHeight * 0.3f) { // Максимально агрессивное заполнение
+                    // ЧЕТКОЕ УСЛОВИЕ: есть ли место хотя бы для одной строки?
+                    if (currentPageHeight + singleLineHeight <= availableHeight) {
+                        // ЕСТЬ МЕСТО - пытаемся добавить элемент
+                        // Если абзац помещается на текущую страницу целиком
+                           if (currentPageHeight + totalHeight <= availableHeight) {
+                               Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : FITS COMPLETELY! Text: ${readerText.line.text.take(30)}...")
+                               currentPageContent.add(readerText)
+                               currentPageHeight += paragraphHeightPx
+                               if (currentPageContent.size > 1) {
+                                   currentPageHeight += paragraphSpacingPx
+                               }
+                        }
+                        // Если в оставшемся месте может поместиться хотя бы одна строка - разбиваем параграф
+                        else if (currentRemainingSpace >= singleLineHeight * 0.3f) { // Максимально агрессивное заполнение
                         Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : BREAKING paragraph $originalIndex : Text: ${readerText.line.text.take(50)}...")
                         Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Current remaining space: ${currentRemainingSpace}px, paragraph height: ${paragraphHeightPx}px")
                         
@@ -191,14 +198,17 @@ class PageCalculator {
                             density = density
                         )
                         
-                        // Добавляем первую часть на текущую страницу БЕЗ дополнительного spacing
-                        if (brokenParts.firstPart != null) {
-        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Adding first part to CURRENT page: ${brokenParts.firstPart.readerText.line.text.take(30)}...")
-        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : First part height: ${brokenParts.firstPart.height}px")
-        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Current height before: ${currentPageHeight}px, after: ${currentPageHeight + brokenParts.firstPart.height}px")
-        currentPageContent.add(brokenParts.firstPart.readerText)
-        currentPageHeight += brokenParts.firstPart.height // БЕЗ spacing - он уже учтен в основной логике
-                        }
+                           // Добавляем первую часть на текущую страницу БЕЗ дополнительного spacing
+                           if (brokenParts.firstPart != null) {
+                               Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Adding first part to CURRENT page: ${brokenParts.firstPart.readerText.line.text.take(30)}...")
+                               Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : First part height: ${brokenParts.firstPart.height}px")
+                               Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Current height before: ${currentPageHeight}px, after: ${currentPageHeight + brokenParts.firstPart.height}px")
+                               currentPageContent.add(brokenParts.firstPart.readerText)
+                               currentPageHeight += brokenParts.firstPart.height
+                               if (currentPageContent.size > 1) {
+                                   currentPageHeight += paragraphSpacingPx
+                               }
+                           }
                         
                         // Сохраняем текущую страницу
                         Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : SAVING with ${currentPageContent.size} elements")
@@ -220,9 +230,12 @@ class PageCalculator {
                             currentPageContent.add(brokenParts.remainingPart.readerText)
                             currentPageHeight = brokenParts.remainingPart.height
                         }
-                    }
-                    // Недостаточно места даже для одной строки - переносим абзац целиком на новую страницу
-                    else {
+                        } else {
+                            // НЕТ МЕСТА ДАЖЕ ДЛЯ РАЗБИЕНИЯ - переносим абзац целиком на новую страницу
+                            Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : NO SPACE FOR BREAKING! Moving to NEW page")
+                        }
+                    } else {
+                        // НЕТ МЕСТА ДАЖЕ ДЛЯ ОДНОЙ СТРОКИ - переносим абзац целиком на новую страницу
                         Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : NO SPACE FOR EVEN ONE LINE! Moving to NEW page")
                         
                         // Если страница не пустая, сохраняем её
@@ -253,7 +266,7 @@ class PageCalculator {
                     Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : CURRENT PAGE HAS ${currentPageContent.size} ELEMENTS")
                     Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : CURRENT PAGE HEIGHT: ${currentPageHeight}px")
                     
-                    val chapterHeight = calculateChapterHeight(
+                    val chapterHeight = TextMeasurementUtils.calculateChapterHeight(
                         title = readerText.title,
                         textPaint = textPaint,
                         availableWidth = availableWidth,
@@ -297,7 +310,7 @@ class PageCalculator {
                     Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : CURRENT PAGE HAS ${currentPageContent.size} ELEMENTS")
                     Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : CURRENT PAGE HEIGHT: ${currentPageHeight}px")
                     
-                    val separatorHeight = calculateSeparatorHeight(
+                    val separatorHeight = TextMeasurementUtils.calculateSeparatorHeight(
                         textPaint = textPaint,
                         availableWidth = availableWidth,
                         fontSize = fontSize,
@@ -345,10 +358,13 @@ class PageCalculator {
                         imageHeight
                     }
                     
-                    if (currentPageHeight + totalHeight <= availableHeight) {
-                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Image $originalIndex : FITS COMPLETELY!")
-                        currentPageContent.add(readerText)
-                        currentPageHeight += totalHeight
+                   if (currentPageHeight + totalHeight <= availableHeight) {
+                       Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Image $originalIndex : FITS COMPLETELY!")
+                       currentPageContent.add(readerText)
+                       currentPageHeight += imageHeight
+                       if (currentPageContent.size > 1) {
+                           currentPageHeight += paragraphSpacingPx
+                       }
                     } else {
                         Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Image $originalIndex : DOESN'T FIT! Moving to NEW page")
                         
@@ -391,134 +407,10 @@ class PageCalculator {
         return pages
     }
     
-    private fun createTextPaint(
-        fontSize: TextUnit,
-        fontFamily: FontWithName,
-        fontThickness: ReaderFontThickness,
-        fontStyle: FontStyle,
-        textAlignment: ReaderTextAlignment,
-        letterSpacing: TextUnit,
-        density: Float
-    ): TextPaint {
-        return TextPaint().apply {
-            this.textSize = fontSize.value * density // Convert sp to px
-            this.typeface = Typeface.DEFAULT // TODO: Implement proper font conversion
-            this.isFakeBoldText = fontThickness == ReaderFontThickness.MEDIUM
-            this.textSkewX = if (fontStyle == FontStyle.Italic) -0.25f else 0f
-            this.letterSpacing = letterSpacing.value.toFloat() * fontSize.value * density // Convert em to px
-            this.isAntiAlias = true
-            
-            Log.d("PAGE_CALCULATOR", "TextPaint created: textSize=${this.textSize}px, letterSpacing=${this.letterSpacing}px")
-        }
-    }
     
-    private fun getAlignment(textAlignment: ReaderTextAlignment): Layout.Alignment {
-        return when (textAlignment) {
-            ReaderTextAlignment.START -> Layout.Alignment.ALIGN_NORMAL
-            ReaderTextAlignment.CENTER -> Layout.Alignment.ALIGN_CENTER
-            ReaderTextAlignment.END -> Layout.Alignment.ALIGN_OPPOSITE
-            ReaderTextAlignment.JUSTIFY -> Layout.Alignment.ALIGN_NORMAL
-        }
-    }
     
-    private fun getLineSpacingMultiplier(lineHeight: TextUnit, fontSize: TextUnit): Float {
-        val ratio = lineHeight.value / fontSize.value
-        return if (ratio > 0f) ratio else 1f
-    }
     
-    private fun calculateParagraphHeight(
-        text: String,
-        textPaint: TextPaint,
-        availableWidth: Int,
-        fontSize: TextUnit,
-        lineHeight: TextUnit,
-        paragraphIndentation: TextUnit,
-        density: Float
-    ): Int {
-        // Используем оригинальный текст без добавления пробелов
-        // Отступ первой строки будет учитываться в рендере
-        val indentedText = text
-        
-        val lineSpacingMultiplier = getLineSpacingMultiplier(lineHeight, fontSize)
-        Log.d("PAGE_CALCULATOR", "StaticLayout params: textLength=${indentedText.length}, availableWidth=$availableWidth, lineSpacingMultiplier=$lineSpacingMultiplier")
-        Log.d("PAGE_CALCULATOR", "TextPaint params: textSize=${textPaint.textSize}, letterSpacing=${textPaint.letterSpacing}")
-        Log.d("PAGE_CALCULATOR", "Original text: '${text.take(100)}...'")
-        Log.d("PAGE_CALCULATOR", "Indented text: '${indentedText.take(100)}...'")
-        
-        val staticLayout = StaticLayout.Builder
-            .obtain(indentedText, 0, indentedText.length, textPaint, availableWidth)
-            .setAlignment(getAlignment(ReaderTextAlignment.START))
-            .setLineSpacing(0f, lineSpacingMultiplier)
-            .setIncludePad(false)
-            .build()
-        
-        Log.d("PAGE_CALCULATOR", "StaticLayout result: height=${staticLayout.height}, lineCount=${staticLayout.lineCount}")
-        
-        // Debug: Check line details
-        for (i in 0 until staticLayout.lineCount) {
-            val start = staticLayout.getLineStart(i)
-            val end = staticLayout.getLineEnd(i)
-            val lineText = indentedText.substring(start, end)
-            Log.d("PAGE_CALCULATOR", "Line $i: '$lineText' (chars $start-$end)")
-        }
-        
-        return staticLayout.height
-    }
     
-    private fun calculateChapterHeight(
-        title: String,
-        textPaint: TextPaint,
-        availableWidth: Int,
-        fontSize: TextUnit,
-        lineHeight: TextUnit,
-        paragraphHeight: Dp,
-        density: Float
-    ): Int {
-        // Создаем TextPaint для заголовка с увеличенным размером шрифта (как в ReaderPagesLayout)
-        val titleTextPaint = TextPaint(textPaint).apply {
-            textSize = (fontSize * 1.2f).value * density // Правильно: fontSize * 1.2f как в рендере
-            isFakeBoldText = true // Жирный шрифт для заголовка
-        }
-        
-        val staticLayout = StaticLayout.Builder
-            .obtain(title, 0, title.length, titleTextPaint, availableWidth)
-            .setAlignment(getAlignment(ReaderTextAlignment.START))
-            .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight * 1.2f, fontSize * 1.2f))
-            .setIncludePad(false)
-            .build()
-        
-        // Используем paragraphHeight для отступов вместо хардкода
-        // В рендере: Spacer(22.dp) + текст + Spacer(16.dp) + разделитель + Spacer(16.dp)
-        val topSpacer = (paragraphHeight.value * density * 1.1).toInt() // Примерно 22dp если paragraphHeight = 20dp
-        val bottomSpacer1 = (paragraphHeight.value * density * 0.8).toInt() // Примерно 16dp если paragraphHeight = 20dp
-        val bottomSpacer2 = (paragraphHeight.value * density * 0.8).toInt() // Примерно 16dp если paragraphHeight = 20dp
-        
-        return topSpacer + staticLayout.height + bottomSpacer1 + bottomSpacer2
-    }
-    
-    private fun calculateSeparatorHeight(
-        textPaint: TextPaint,
-        availableWidth: Int,
-        fontSize: TextUnit,
-        lineHeight: TextUnit,
-        paragraphHeight: Dp,
-        density: Float
-    ): Int {
-        val separatorText = "---"
-        val staticLayout = StaticLayout.Builder
-            .obtain(separatorText, 0, separatorText.length, textPaint, availableWidth)
-            .setAlignment(getAlignment(ReaderTextAlignment.CENTER)) // Центрируем как в рендере
-            .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
-            .setIncludePad(false)
-            .build()
-        
-        // Используем paragraphHeight для отступов вместо хардкода
-        // В рендере: Spacer(16.dp) + текст + Spacer(16.dp)
-        val topPadding = (paragraphHeight.value * density * 0.8).toInt() // Примерно 16dp если paragraphHeight = 20dp
-        val bottomPadding = (paragraphHeight.value * density * 0.8).toInt() // Примерно 16dp если paragraphHeight = 20dp
-        
-        return topPadding + staticLayout.height + bottomPadding
-    }
     
     private fun breakParagraphForCurrentPage(
         paragraph: ReaderText.Text,
@@ -534,8 +426,8 @@ class PageCalculator {
         val text = paragraph.line.text
         val staticLayout = StaticLayout.Builder
             .obtain(text, 0, text.length, textPaint, availableWidth)
-            .setAlignment(getAlignment(ReaderTextAlignment.START))
-            .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
+            .setAlignment(TextMeasurementUtils.getAlignment(ReaderTextAlignment.START))
+            .setLineSpacing(0f, TextMeasurementUtils.getLineSpacingMultiplier(lineHeight, fontSize))
             .setIncludePad(false)
             .build()
         
@@ -552,8 +444,8 @@ class PageCalculator {
             
             val partLayout = StaticLayout.Builder
                 .obtain(partText, 0, partText.length, textPaint, availableWidth)
-                .setAlignment(getAlignment(ReaderTextAlignment.START))
-                .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
+                .setAlignment(TextMeasurementUtils.getAlignment(ReaderTextAlignment.START))
+                .setLineSpacing(0f, TextMeasurementUtils.getLineSpacingMultiplier(lineHeight, fontSize))
                 .setIncludePad(false)
                 .build()
             
@@ -585,8 +477,8 @@ class PageCalculator {
         
         val firstPartLayout = StaticLayout.Builder
             .obtain(firstPartText, 0, firstPartText.length, textPaint, availableWidth)
-            .setAlignment(getAlignment(ReaderTextAlignment.START))
-            .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
+            .setAlignment(TextMeasurementUtils.getAlignment(ReaderTextAlignment.START))
+            .setLineSpacing(0f, TextMeasurementUtils.getLineSpacingMultiplier(lineHeight, fontSize))
             .setIncludePad(false)
             .build()
         
@@ -612,8 +504,8 @@ class PageCalculator {
             val trimmedText = remainingPartText.trimStart()
             val remainingPartLayout = StaticLayout.Builder
                 .obtain(trimmedText, 0, trimmedText.length, textPaint, availableWidth)
-                .setAlignment(getAlignment(ReaderTextAlignment.START))
-                .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
+                .setAlignment(TextMeasurementUtils.getAlignment(ReaderTextAlignment.START))
+                .setLineSpacing(0f, TextMeasurementUtils.getLineSpacingMultiplier(lineHeight, fontSize))
                 .setIncludePad(false)
                 .build()
             
@@ -649,8 +541,8 @@ class PageCalculator {
         val text = paragraph.line.text
         val staticLayout = StaticLayout.Builder
             .obtain(text, 0, text.length, textPaint, availableWidth)
-            .setAlignment(getAlignment(ReaderTextAlignment.START)) // Добавляем выравнивание
-            .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
+            .setAlignment(TextMeasurementUtils.getAlignment(ReaderTextAlignment.START)) // Добавляем выравнивание
+            .setLineSpacing(0f, TextMeasurementUtils.getLineSpacingMultiplier(lineHeight, fontSize))
             .setIncludePad(false)
             .build()
         
@@ -681,8 +573,8 @@ class PageCalculator {
                 val partText = text.substring(startChar, endChar)
                 val partLayout = StaticLayout.Builder
                     .obtain(partText, 0, partText.length, textPaint, availableWidth)
-                    .setAlignment(getAlignment(ReaderTextAlignment.START))
-                    .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
+                    .setAlignment(TextMeasurementUtils.getAlignment(ReaderTextAlignment.START))
+                    .setLineSpacing(0f, TextMeasurementUtils.getLineSpacingMultiplier(lineHeight, fontSize))
                     .setIncludePad(false)
                     .build()
                 
@@ -707,8 +599,8 @@ class PageCalculator {
             val partText = text.substring(startChar, endChar)
             val partLayout = StaticLayout.Builder
                 .obtain(partText, 0, partText.length, textPaint, availableWidth)
-                .setAlignment(getAlignment(ReaderTextAlignment.START))
-                .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
+                .setAlignment(TextMeasurementUtils.getAlignment(ReaderTextAlignment.START))
+                .setLineSpacing(0f, TextMeasurementUtils.getLineSpacingMultiplier(lineHeight, fontSize))
                 .setIncludePad(false)
                 .build()
             
