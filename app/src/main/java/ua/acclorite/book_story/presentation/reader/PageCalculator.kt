@@ -77,6 +77,7 @@ class PageCalculator {
         Log.d("PAGE_CALCULATOR", "Content padding: ${contentPaddingPx}px")
         Log.d("PAGE_CALCULATOR", "Vertical padding: ${verticalPaddingPx}px")
         Log.d("PAGE_CALCULATOR", "Density: ${density}")
+        Log.d("PAGE_CALCULATOR_DEBUG", "CALCULATOR availableHeight = ${availableHeight}px")
         Log.d("PAGE_CALCULATOR_AVAILABLE_HEIGHT", "CALCULATOR availableHeight = ${availableHeight}px")
         
         // Расчеты завершены
@@ -190,12 +191,13 @@ class PageCalculator {
                             density = density
                         )
                         
-                        // Добавляем первую часть на текущую страницу С spacing (если не первый элемент)
+                        // Добавляем первую часть на текущую страницу БЕЗ дополнительного spacing
                         if (brokenParts.firstPart != null) {
-                            Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Adding first part to CURRENT page: ${brokenParts.firstPart.readerText.line.text.take(30)}...")
-                            currentPageContent.add(brokenParts.firstPart.readerText)
-                            val spacing = if (currentPageContent.size > 1) paragraphSpacingPx else 0
-                            currentPageHeight += brokenParts.firstPart.height + spacing
+        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Adding first part to CURRENT page: ${brokenParts.firstPart.readerText.line.text.take(30)}...")
+        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : First part height: ${brokenParts.firstPart.height}px")
+        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Current height before: ${currentPageHeight}px, after: ${currentPageHeight + brokenParts.firstPart.height}px")
+        currentPageContent.add(brokenParts.firstPart.readerText)
+        currentPageHeight += brokenParts.firstPart.height // БЕЗ spacing - он уже учтен в основной логике
                         }
                         
                         // Сохраняем текущую страницу
