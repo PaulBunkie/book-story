@@ -190,11 +190,12 @@ class PageCalculator {
                             density = density
                         )
                         
-                        // Добавляем первую часть на текущую страницу
+                        // Добавляем первую часть на текущую страницу С spacing (если не первый элемент)
                         if (brokenParts.firstPart != null) {
                             Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Adding first part to CURRENT page: ${brokenParts.firstPart.readerText.line.text.take(30)}...")
                             currentPageContent.add(brokenParts.firstPart.readerText)
-                            currentPageHeight += brokenParts.firstPart.height + paragraphSpacingPx
+                            val spacing = if (currentPageContent.size > 1) paragraphSpacingPx else 0
+                            currentPageHeight += brokenParts.firstPart.height + spacing
                         }
                         
                         // Сохраняем текущую страницу
@@ -556,14 +557,8 @@ class PageCalculator {
             
             accumulatedHeight += partLayout.height
             
-            // Учитываем отступ между параграфами для последней строки
-            val totalHeightWithSpacing = if (lineIndex == totalLines - 1) {
-                accumulatedHeight + paragraphSpacingPx
-            } else {
-                accumulatedHeight
-            }
-            
-            if (totalHeightWithSpacing <= remainingSpace) {
+            // НЕ добавляем spacing внутри разбиения - он добавляется между элементами
+            if (accumulatedHeight <= remainingSpace) {
                 maxLinesForCurrentPage = lineIndex + 1
             } else {
                 break
