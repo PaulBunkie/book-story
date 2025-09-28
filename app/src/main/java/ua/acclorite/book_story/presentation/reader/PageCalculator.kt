@@ -77,6 +77,7 @@ class PageCalculator {
         Log.d("PAGE_CALCULATOR", "Content padding: ${contentPaddingPx}px")
         Log.d("PAGE_CALCULATOR", "Vertical padding: ${verticalPaddingPx}px")
         Log.d("PAGE_CALCULATOR", "Density: ${density}")
+        Log.d("PAGE_CALCULATOR_AVAILABLE_HEIGHT", "CALCULATOR availableHeight = ${availableHeight}px")
         
         // Расчеты завершены
         
@@ -160,47 +161,71 @@ class PageCalculator {
                         paragraphHeightPx // только высота текста для первого элемента
                     }
                     
+                    val currentRemainingSpace = availableHeight - currentPageHeight
+                    val singleLineHeight = (fontSize.value * density * getLineSpacingMultiplier(lineHeight, fontSize)).toInt()
+                    
+                    Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : Need ${totalHeight}px, have ${currentRemainingSpace}px remaining")
+                    
                     // Если абзац помещается на текущую страницу целиком
                     if (currentPageHeight + totalHeight <= availableHeight) {
-                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : FITS! Text: ${readerText.line.text.take(30)}...")
+                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : FITS COMPLETELY! Text: ${readerText.line.text.take(30)}...")
                         currentPageContent.add(readerText)
                         currentPageHeight += totalHeight
-                    } else {
-                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : DOESN'T FIT! Need ${totalHeight}px, have ${availableHeight - currentPageHeight}px")
+                    }
+                    // Если в оставшемся месте может поместиться хотя бы одна строка - разбиваем параграф
+                    else if (currentRemainingSpace >= singleLineHeight * 0.3f) { // Максимально агрессивное заполнение
+                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : BREAKING paragraph $originalIndex : Text: ${readerText.line.text.take(50)}...")
+                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Current remaining space: ${currentRemainingSpace}px, paragraph height: ${paragraphHeightPx}px")
                         
-                        // Проверяем, можем ли разбить параграф на текущей странице
-                        val currentRemainingSpace = availableHeight - currentPageHeight
-                        val singleLineHeight = (fontSize.value * density * getLineSpacingMultiplier(lineHeight, fontSize)).toInt()
+                        // Разбиваем параграф: часть на текущую страницу, остаток на следующую
+                        val brokenParts = breakParagraphForCurrentPage(
+                            paragraph = readerText,
+                            textPaint = textPaint,
+                            availableWidth = availableWidth,
+                            remainingSpace = currentRemainingSpace,
+                            fontSize = fontSize,
+                            lineHeight = lineHeight,
+                            paragraphIndentation = paragraphIndentation,
+                            paragraphSpacingPx = paragraphSpacingPx,
+                            density = density
+                        )
                         
-                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Breaking check: paragraphHeight=${paragraphHeightPx}px, currentRemainingSpace=${currentRemainingSpace}px, singleLineHeight=${singleLineHeight}px")
+                        // Добавляем первую часть на текущую страницу
+                        if (brokenParts.firstPart != null) {
+                            Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Adding first part to CURRENT page: ${brokenParts.firstPart.readerText.line.text.take(30)}...")
+                            currentPageContent.add(brokenParts.firstPart.readerText)
+                            currentPageHeight += brokenParts.firstPart.height + paragraphSpacingPx
+                        }
                         
-                        // Если в оставшемся месте может поместиться хотя бы одна строка
-                        if (currentRemainingSpace >= singleLineHeight) {
-                            Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : BREAKING paragraph $originalIndex : Text: ${readerText.line.text.take(50)}...")
-                            Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Current remaining space: ${currentRemainingSpace}px, paragraph height: ${paragraphHeightPx}px")
-                            
-                            // Разбиваем параграф: часть на текущую страницу, остаток на следующую
-                            val brokenParts = breakParagraphForCurrentPage(
-                                paragraph = readerText,
-                                textPaint = textPaint,
-                                availableWidth = availableWidth,
-                                remainingSpace = currentRemainingSpace,
-                                fontSize = fontSize,
-                                lineHeight = lineHeight,
-                                paragraphIndentation = paragraphIndentation,
-                                paragraphSpacingPx = paragraphSpacingPx,
-                                density = density
+                        // Сохраняем текущую страницу
+                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : SAVING with ${currentPageContent.size} elements")
+                        Log.d("PAGE_CALCULATOR_HEIGHT", "Page $pageIndex : CALCULATOR HEIGHT = ${currentPageHeight}px")
+                        pages.add(
+                            Page(
+                                content = currentPageContent.toList(),
+                                startIndex = pageIndex,
+                                endIndex = pageIndex
                             )
-                            
-                            // Добавляем первую часть на текущую страницу
-                            if (brokenParts.firstPart != null) {
-                                Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Adding first part to CURRENT page: ${brokenParts.firstPart.readerText.line.text.take(30)}...")
-                                currentPageContent.add(brokenParts.firstPart.readerText)
-                                currentPageHeight += brokenParts.firstPart.height + paragraphSpacingPx
-                            }
-                            
-                            // Сохраняем текущую страницу
+                        )
+                        pageIndex++
+                        currentPageContent.clear()
+                        currentPageHeight = 0
+                        
+                        // Добавляем остаток на новую страницу
+                        if (brokenParts.remainingPart != null) {
+                            Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Adding remaining part to NEW page: ${brokenParts.remainingPart.readerText.line.text.take(30)}...")
+                            currentPageContent.add(brokenParts.remainingPart.readerText)
+                            currentPageHeight = brokenParts.remainingPart.height
+                        }
+                    }
+                    // Недостаточно места даже для одной строки - переносим абзац целиком на новую страницу
+                    else {
+                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : NO SPACE FOR EVEN ONE LINE! Moving to NEW page")
+                        
+                        // Если страница не пустая, сохраняем её
+                        if (currentPageContent.isNotEmpty()) {
                             Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : SAVING with ${currentPageContent.size} elements")
+                            Log.d("PAGE_CALCULATOR_HEIGHT", "Page $pageIndex : CALCULATOR HEIGHT = ${currentPageHeight}px")
                             pages.add(
                                 Page(
                                     content = currentPageContent.toList(),
@@ -211,35 +236,12 @@ class PageCalculator {
                             pageIndex++
                             currentPageContent.clear()
                             currentPageHeight = 0
-                            
-                            // Добавляем остаток на новую страницу
-                            if (brokenParts.remainingPart != null) {
-                                Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Adding remaining part to NEW page: ${brokenParts.remainingPart.readerText.line.text.take(30)}...")
-                                currentPageContent.add(brokenParts.remainingPart.readerText)
-                                currentPageHeight = brokenParts.remainingPart.height
-                            }
-                        } else {
-                            // Недостаточно места даже для одной строки, переносим абзац целиком на новую страницу
-                            // Если страница не пустая, сохраняем её
-                            if (currentPageContent.isNotEmpty()) {
-                                Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : SAVING with ${currentPageContent.size} elements")
-                                pages.add(
-                                    Page(
-                                        content = currentPageContent.toList(),
-                                        startIndex = pageIndex,
-                                        endIndex = pageIndex
-                                    )
-                                )
-                                pageIndex++
-                                currentPageContent.clear()
-                                currentPageHeight = 0
-                            }
-                            
-                            // Абзац помещается на новую страницу
-                            Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex FITS on NEW page! Text: ${readerText.line.text.take(30)}...")
-                            currentPageContent.add(readerText)
-                            currentPageHeight = paragraphHeightPx
                         }
+                        
+                        // Абзац помещается на новую страницу
+                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex FITS on NEW page! Text: ${readerText.line.text.take(30)}...")
+                        currentPageContent.add(readerText)
+                        currentPageHeight = paragraphHeightPx
                     }
                 }
                 
@@ -254,6 +256,7 @@ class PageCalculator {
                         availableWidth = availableWidth,
                         fontSize = fontSize,
                         lineHeight = lineHeight,
+                        paragraphHeight = paragraphHeight,
                         density = density
                     )
                     
@@ -296,6 +299,7 @@ class PageCalculator {
                         availableWidth = availableWidth,
                         fontSize = fontSize,
                         lineHeight = lineHeight,
+                        paragraphHeight = paragraphHeight,
                         density = density
                     )
                     
@@ -339,11 +343,16 @@ class PageCalculator {
                     }
                     
                     if (currentPageHeight + totalHeight <= availableHeight) {
+                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Image $originalIndex : FITS COMPLETELY!")
                         currentPageContent.add(readerText)
                         currentPageHeight += totalHeight
                     } else {
+                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Image $originalIndex : DOESN'T FIT! Moving to NEW page")
+                        
                         // Сохраняем текущую страницу
                         if (currentPageContent.isNotEmpty()) {
+                            Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : SAVING with ${currentPageContent.size} elements")
+                            Log.d("PAGE_CALCULATOR_HEIGHT", "Page $pageIndex : CALCULATOR HEIGHT = ${currentPageHeight}px")
                             pages.add(
                                 Page(
                                     content = currentPageContent.toList(),
@@ -351,12 +360,13 @@ class PageCalculator {
                                     endIndex = pageIndex
                                 )
                             )
-            pageIndex++
+                            pageIndex++
                             currentPageContent.clear()
                             currentPageHeight = 0
                         }
                         
                         // Добавляем изображение на новую страницу
+                        Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Adding image to NEW page")
                         currentPageContent.add(readerText)
                         currentPageHeight = imageHeight
                     }
@@ -422,14 +432,9 @@ class PageCalculator {
         paragraphIndentation: TextUnit,
         density: Float
     ): Int {
-        // Добавляем отступ первой строки к тексту (как в StyledText)
-        val indentedText = if (paragraphIndentation.value > 0) {
-            val indentPx = paragraphIndentation.value * density
-            val fontSizePx = fontSize.value * density
-            " ".repeat((indentPx / fontSizePx).toInt()) + text
-        } else {
-            text
-        }
+        // Используем оригинальный текст без добавления пробелов
+        // Отступ первой строки будет учитываться в рендере
+        val indentedText = text
         
         val lineSpacingMultiplier = getLineSpacingMultiplier(lineHeight, fontSize)
         Log.d("PAGE_CALCULATOR", "StaticLayout params: textLength=${indentedText.length}, availableWidth=$availableWidth, lineSpacingMultiplier=$lineSpacingMultiplier")
@@ -463,15 +468,29 @@ class PageCalculator {
         availableWidth: Int,
         fontSize: TextUnit,
         lineHeight: TextUnit,
+        paragraphHeight: Dp,
         density: Float
     ): Int {
+        // Создаем TextPaint для заголовка с увеличенным размером шрифта (как в ReaderPagesLayout)
+        val titleTextPaint = TextPaint(textPaint).apply {
+            textSize = (fontSize * 1.2f).value * density // Правильно: fontSize * 1.2f как в рендере
+            isFakeBoldText = true // Жирный шрифт для заголовка
+        }
+        
         val staticLayout = StaticLayout.Builder
-            .obtain(title, 0, title.length, textPaint, availableWidth)
-            .setAlignment(getAlignment(ReaderTextAlignment.START)) // Добавляем выравнивание
-            .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
+            .obtain(title, 0, title.length, titleTextPaint, availableWidth)
+            .setAlignment(getAlignment(ReaderTextAlignment.START))
+            .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight * 1.2f, fontSize * 1.2f))
             .setIncludePad(false)
             .build()
-        return staticLayout.height + (lineHeight.value * density * 2).toInt() // Дополнительное пространство после заголовка
+        
+        // Используем paragraphHeight для отступов вместо хардкода
+        // В рендере: Spacer(22.dp) + текст + Spacer(16.dp) + разделитель + Spacer(16.dp)
+        val topSpacer = (paragraphHeight.value * density * 1.1).toInt() // Примерно 22dp если paragraphHeight = 20dp
+        val bottomSpacer1 = (paragraphHeight.value * density * 0.8).toInt() // Примерно 16dp если paragraphHeight = 20dp
+        val bottomSpacer2 = (paragraphHeight.value * density * 0.8).toInt() // Примерно 16dp если paragraphHeight = 20dp
+        
+        return topSpacer + staticLayout.height + bottomSpacer1 + bottomSpacer2
     }
     
     private fun calculateSeparatorHeight(
@@ -479,16 +498,23 @@ class PageCalculator {
         availableWidth: Int,
         fontSize: TextUnit,
         lineHeight: TextUnit,
+        paragraphHeight: Dp,
         density: Float
     ): Int {
         val separatorText = "---"
         val staticLayout = StaticLayout.Builder
             .obtain(separatorText, 0, separatorText.length, textPaint, availableWidth)
-            .setAlignment(getAlignment(ReaderTextAlignment.START)) // Добавляем выравнивание
+            .setAlignment(getAlignment(ReaderTextAlignment.CENTER)) // Центрируем как в рендере
             .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
             .setIncludePad(false)
             .build()
-        return staticLayout.height + (lineHeight.value * density * 2).toInt() // Дополнительное пространство
+        
+        // Используем paragraphHeight для отступов вместо хардкода
+        // В рендере: Spacer(16.dp) + текст + Spacer(16.dp)
+        val topPadding = (paragraphHeight.value * density * 0.8).toInt() // Примерно 16dp если paragraphHeight = 20dp
+        val bottomPadding = (paragraphHeight.value * density * 0.8).toInt() // Примерно 16dp если paragraphHeight = 20dp
+        
+        return topPadding + staticLayout.height + bottomPadding
     }
     
     private fun breakParagraphForCurrentPage(
@@ -514,9 +540,11 @@ class PageCalculator {
         
         // Находим максимальное количество строк, которое помещается в оставшееся место
         var maxLinesForCurrentPage = 0
+        var accumulatedHeight = 0
+        
         for (lineIndex in 0 until totalLines) {
-            val startChar = staticLayout.getLineStart(0)
-            val endChar = staticLayout.getLineStart(lineIndex + 1)
+            val startChar = staticLayout.getLineStart(lineIndex)
+            val endChar = if (lineIndex + 1 < totalLines) staticLayout.getLineStart(lineIndex + 1) else text.length
             val partText = text.substring(startChar, endChar)
             
             val partLayout = StaticLayout.Builder
@@ -526,7 +554,16 @@ class PageCalculator {
                 .setIncludePad(false)
                 .build()
             
-            if (partLayout.height <= remainingSpace) {
+            accumulatedHeight += partLayout.height
+            
+            // Учитываем отступ между параграфами для последней строки
+            val totalHeightWithSpacing = if (lineIndex == totalLines - 1) {
+                accumulatedHeight + paragraphSpacingPx
+            } else {
+                accumulatedHeight
+            }
+            
+            if (totalHeightWithSpacing <= remainingSpace) {
                 maxLinesForCurrentPage = lineIndex + 1
             } else {
                 break

@@ -141,7 +141,7 @@ fun ReaderPagesLayout(
                            val sidePaddingPx = sidePadding * 2
                            val availableWidth = screenWidth - sidePaddingPx.value.toInt()
                            // Применяем тот же коэффициент безопасности, что и в PageCalculator
-                           val safetyMargin = 0.95f // 95% от доступной высоты
+                           val safetyMargin = 1.00f // 100% от доступной высоты (синхронизировано с PageCalculator)
                            val availableHeight = ((screenHeight - contentPaddingPx.value.toInt() - verticalPaddingPx.value.toInt()) * safetyMargin).toInt()
                            
                            // Создаем TextPaint для расчета высот (синхронизировано с PageCalculator)
@@ -157,6 +157,43 @@ fun ReaderPagesLayout(
                            Log.d("PAGE_RENDER_DEBUG", "=== Page $pageIndex Render Analysis ===")
                            Log.d("PAGE_RENDER_DEBUG", "Screen: ${screenWidth}x${screenHeight}")
                            Log.d("PAGE_RENDER_DEBUG", "Available: ${availableWidth}x${availableHeight} (with ${(safetyMargin * 100).toInt()}% safety margin)")
+                           
+                           // Подсчитываем общую высоту контента
+                           var totalContentHeight = 0
+                           page.content.forEachIndexed { elementIndex, readerText ->
+                               when (readerText) {
+                                   is ReaderText.Text -> {
+                                       val elementHeight = calculateTextHeight(
+                                           readerText.line.text,
+                                           textPaint,
+                                           availableWidth,
+                                           fontSize,
+                                           lineHeight,
+                                           paragraphIndentation,
+                                           textAlignment,
+                                           density.density
+                                       )
+                                       totalContentHeight += elementHeight
+                                       Log.d("PAGE_RENDER_DEBUG", "Element $elementIndex (Text): ${elementHeight}px - '${readerText.line.text.take(30)}...'")
+                                   }
+                                   is ReaderText.Chapter -> {
+                                       val elementHeight = ((fontSize * 1.2f).value * density.density + 32.dp.value * density.density).toInt() // Примерная высота
+                                       totalContentHeight += elementHeight
+                                       Log.d("PAGE_RENDER_DEBUG", "Element $elementIndex (Chapter): ${elementHeight}px - '${readerText.title.take(30)}...'")
+                                   }
+                                   is ReaderText.Separator -> {
+                                       val elementHeight = (fontSize.value * density.density + 32.dp.value * density.density).toInt() // Примерная высота
+                                       totalContentHeight += elementHeight
+                                       Log.d("PAGE_RENDER_DEBUG", "Element $elementIndex (Separator): ${elementHeight}px")
+                                   }
+                                   is ReaderText.Image -> {
+                                       val elementHeight = 200 // Примерная высота изображения
+                                       totalContentHeight += elementHeight
+                                       Log.d("PAGE_RENDER_DEBUG", "Element $elementIndex (Image): ${elementHeight}px")
+                                   }
+                               }
+                           }
+                           Log.d("PAGE_RENDER_DEBUG", "Total content height: ${totalContentHeight}px / Available: ${availableHeight}px (${(totalContentHeight.toFloat() / availableHeight * 100).toInt()}% used)")
                            Log.d("PAGE_RENDER_DEBUG", "Elements: ${page.content.size}")
                            
                            for ((elementIndex, readerText) in page.content.withIndex()) {
@@ -180,7 +217,8 @@ fun ReaderPagesLayout(
                                            fontSize = fontSize,
                                            lineHeight = lineHeight,
                                            paragraphIndentation = paragraphIndentation,
-                                           textAlignment = textAlignment
+                                           textAlignment = textAlignment,
+                                           density = density.density
                                        )
                                        totalCalculatedHeight += textHeight
                                        
@@ -302,7 +340,7 @@ fun ReaderPagesLayout(
     }
 }
 
-// Функция для расчета высоты текста (синхронизирована с PageCalculator)
+// Функция для расчета высоты текста (синхронизирована с PageCalculator.calculateParagraphHeight)
 private fun calculateTextHeight(
     text: String,
     textPaint: TextPaint,
@@ -310,23 +348,19 @@ private fun calculateTextHeight(
     fontSize: TextUnit,
     lineHeight: TextUnit,
     paragraphIndentation: TextUnit,
-    textAlignment: ReaderTextAlignment
+    textAlignment: ReaderTextAlignment,
+    density: Float
 ): Int {
-    // Добавляем отступ первой строки к тексту (как в StyledText)
-    val indentedText = if (paragraphIndentation.value > 0) {
-        val indentPx = paragraphIndentation.value * textPaint.textSize / fontSize.value
-        val fontSizePx = fontSize.value
-        " ".repeat((indentPx / fontSizePx).toInt()) + text
-    } else {
-        text
-    }
+    // Используем оригинальный текст без добавления пробелов
+    // Отступ первой строки будет учитываться в рендере
+    val indentedText = text
     
     val lineSpacingMultiplier = getLineSpacingMultiplier(lineHeight, fontSize)
     
     val staticLayout = StaticLayout.Builder.obtain(
         indentedText, 0, indentedText.length, textPaint, availableWidth
     )
-        .setAlignment(getAlignment(textAlignment))
+        .setAlignment(getAlignment(ReaderTextAlignment.START))
         .setLineSpacing(0f, lineSpacingMultiplier)
         .setIncludePad(false)
         .build()
