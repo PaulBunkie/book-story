@@ -168,8 +168,8 @@ class PageCalculator {
                     
                     Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : Need ${totalHeight}px, have ${currentRemainingSpace}px remaining")
                     
-                    // ЧЕТКОЕ УСЛОВИЕ: есть ли место хотя бы для одной строки?
-                    if (currentPageHeight + singleLineHeight <= availableHeight) {
+                    // ЧЕТКОЕ УСЛОВИЕ: есть ли место хотя бы для одной строки + spacing?
+                    if (currentPageHeight + singleLineHeight + paragraphSpacingPx <= availableHeight) {
                         // ЕСТЬ МЕСТО - пытаемся добавить элемент
                         // Если абзац помещается на текущую страницу целиком
                            if (currentPageHeight + totalHeight <= availableHeight) {
