@@ -205,9 +205,7 @@ class PageCalculator {
                                Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Current height before: ${currentPageHeight}px, after: ${currentPageHeight + brokenParts.firstPart.height}px")
                                currentPageContent.add(brokenParts.firstPart.readerText)
                                currentPageHeight += brokenParts.firstPart.height
-                               if (currentPageContent.size > 1) {
-                                   currentPageHeight += paragraphSpacingPx
-                               }
+                               // НЕ добавляем spacing для разбитого параграфа - он уже учтен в heightWithSpacing
                            }
                         
                         // Сохраняем текущую страницу
@@ -433,31 +431,11 @@ class PageCalculator {
         
         val totalLines = staticLayout.lineCount
         
-        // Находим максимальное количество строк, которое помещается в оставшееся место
-        var maxLinesForCurrentPage = 0
-        var accumulatedHeight = 0
+        // ПРЯМОЙ РАСЧЕТ: сколько строк помещается без ебучих циклов!
+        val singleLineHeight = (fontSize.value * density * TextMeasurementUtils.getLineSpacingMultiplier(lineHeight, fontSize)).toInt()
+        val maxLinesForCurrentPage = (remainingSpace - paragraphSpacingPx) / singleLineHeight
         
-        for (lineIndex in 0 until totalLines) {
-            val startChar = staticLayout.getLineStart(lineIndex)
-            val endChar = if (lineIndex + 1 < totalLines) staticLayout.getLineStart(lineIndex + 1) else text.length
-            val partText = text.substring(startChar, endChar)
-            
-            val partLayout = StaticLayout.Builder
-                .obtain(partText, 0, partText.length, textPaint, availableWidth)
-                .setAlignment(TextMeasurementUtils.getAlignment(ReaderTextAlignment.START))
-                .setLineSpacing(0f, TextMeasurementUtils.getLineSpacingMultiplier(lineHeight, fontSize))
-                .setIncludePad(false)
-                .build()
-            
-            accumulatedHeight += partLayout.height
-            
-            // НЕ добавляем spacing внутри разбиения - он добавляется между элементами
-            if (accumulatedHeight <= remainingSpace) {
-                maxLinesForCurrentPage = lineIndex + 1
-            } else {
-                break
-            }
-        }
+        Log.d("PAGE_CALCULATOR_DEBUG", "BREAKING: totalLines=$totalLines, singleLineHeight=$singleLineHeight, remainingSpace=$remainingSpace, maxLinesForCurrentPage=$maxLinesForCurrentPage")
         
         // Если ничего не помещается, возвращаем null для первой части
         if (maxLinesForCurrentPage == 0) {
@@ -470,10 +448,14 @@ class PageCalculator {
             )
         }
         
-        // Создаем первую часть (то, что помещается на текущую страницу)
-        val firstPartStartChar = staticLayout.getLineStart(0)
-        val firstPartEndChar = staticLayout.getLineStart(maxLinesForCurrentPage)
-        val firstPartText = text.substring(firstPartStartChar, firstPartEndChar)
+        // Создаем первую часть (то, что помещается на текущую страницу) - БЕЗ ЦИКЛОВ!
+        Log.d("PAGE_CALCULATOR_DEBUG", "BREAKING: totalLines=$totalLines, maxLinesForCurrentPage=$maxLinesForCurrentPage")
+        
+        val actualLines = minOf(maxLinesForCurrentPage, totalLines)
+        val firstPartEndChar = if (actualLines > 0) staticLayout.getLineEnd(actualLines - 1) else 0
+        val firstPartText = text.substring(0, firstPartEndChar)
+        
+        Log.d("PAGE_CALCULATOR_DEBUG", "BREAKING: First part text (${firstPartText.length} chars): '${firstPartText.take(50)}...'")
         
         val firstPartLayout = StaticLayout.Builder
             .obtain(firstPartText, 0, firstPartText.length, textPaint, availableWidth)
@@ -484,22 +466,21 @@ class PageCalculator {
         
         val firstPart = BrokenParagraphPart(
             readerText = ReaderText.Text(
-                line = androidx.compose.ui.text.AnnotatedString("\u200C$firstPartText\u00A0") // Добавляем невидимый символ как маркер + невидимый пробел в конец
+                line = androidx.compose.ui.text.AnnotatedString(firstPartText)
             ),
             height = firstPartLayout.height,
             isContinuation = false // Это первая часть
         )
         
-        // Создаем остаток (то, что идет на следующую страницу)
-        // Убираем отступ первой строки для остатка разорванного параграфа
-        val remainingPartStartChar = firstPartEndChar
-        val remainingPartText = if (remainingPartStartChar < text.length) {
-            text.substring(remainingPartStartChar)
-        } else {
-            ""
-        }
+        // Создаем остаток (то, что идет на следующую страницу) - БЕЗ ЦИКЛОВ!
+        Log.d("PAGE_CALCULATOR_DEBUG", "BREAKING: Creating remaining part from lines $actualLines to $totalLines")
+        val remainingPartStartChar = if (actualLines < totalLines) staticLayout.getLineStart(actualLines) else text.length
+        val remainingPartText = if (remainingPartStartChar < text.length) text.substring(remainingPartStartChar) else ""
         
-        val remainingPart = if (remainingPartText.isNotEmpty()) {
+        Log.d("PAGE_CALCULATOR_DEBUG", "BREAKING: Remaining part text (${remainingPartText.length} chars): '${remainingPartText.take(50)}...'")
+        
+        val remainingPart = if (remainingPartText.length > 0) {
+            Log.d("PAGE_CALCULATOR_DEBUG", "BREAKING: Creating remainingPart with text length ${remainingPartText.length}")
             // Убираем отступ первой строки для остатка
             val trimmedText = remainingPartText.trimStart()
             val remainingPartLayout = StaticLayout.Builder
@@ -511,12 +492,13 @@ class PageCalculator {
             
             BrokenParagraphPart(
                 readerText = ReaderText.Text(
-                    line = androidx.compose.ui.text.AnnotatedString("\u200B$trimmedText") // Добавляем невидимый символ как маркер продолжения
+                    line = androidx.compose.ui.text.AnnotatedString(trimmedText)
                 ),
                 height = remainingPartLayout.height,
                 isContinuation = true // Помечаем как продолжение параграфа
             )
         } else {
+            Log.d("PAGE_CALCULATOR_DEBUG", "BREAKING: remainingPart is NULL - no remaining text")
             null
         }
         
@@ -563,16 +545,14 @@ class PageCalculator {
             var bestEndLine = endLine
             
             while (endLine <= totalLines) {
-                val startChar = staticLayout.getLineStart(currentLine)
-                val endChar = if (endLine >= totalLines) {
-                    text.length
-                } else {
-                    staticLayout.getLineStart(endLine)
+                val partText = StringBuilder()
+                for (lineIndex in currentLine until endLine) {
+                    val startChar = staticLayout.getLineStart(lineIndex)
+                    val endChar = staticLayout.getLineEnd(lineIndex)
+                    partText.append(text.substring(startChar, endChar))
                 }
-                
-                val partText = text.substring(startChar, endChar)
                 val partLayout = StaticLayout.Builder
-                    .obtain(partText, 0, partText.length, textPaint, availableWidth)
+                    .obtain(partText.toString(), 0, partText.length, textPaint, availableWidth)
                     .setAlignment(TextMeasurementUtils.getAlignment(ReaderTextAlignment.START))
                     .setLineSpacing(0f, TextMeasurementUtils.getLineSpacingMultiplier(lineHeight, fontSize))
                     .setIncludePad(false)
@@ -589,16 +569,14 @@ class PageCalculator {
             }
             
             // Извлекаем текст для лучшей части
-            val startChar = staticLayout.getLineStart(currentLine)
-            val endChar = if (bestEndLine >= totalLines) {
-                text.length
-            } else {
-                staticLayout.getLineStart(bestEndLine)
+            val partText = StringBuilder()
+            for (lineIndex in currentLine until bestEndLine) {
+                val startChar = staticLayout.getLineStart(lineIndex)
+                val endChar = staticLayout.getLineEnd(lineIndex)
+                partText.append(text.substring(startChar, endChar))
             }
-            
-            val partText = text.substring(startChar, endChar)
             val partLayout = StaticLayout.Builder
-                .obtain(partText, 0, partText.length, textPaint, availableWidth)
+                .obtain(partText.toString(), 0, partText.length, textPaint, availableWidth)
                 .setAlignment(TextMeasurementUtils.getAlignment(ReaderTextAlignment.START))
                 .setLineSpacing(0f, TextMeasurementUtils.getLineSpacingMultiplier(lineHeight, fontSize))
                 .setIncludePad(false)
@@ -608,7 +586,7 @@ class PageCalculator {
             
             // Создаем новый ReaderText.Text для этой части
             val partReaderText = ReaderText.Text(
-                line = androidx.compose.ui.text.AnnotatedString(partText)
+                line = androidx.compose.ui.text.AnnotatedString(partText.toString())
             )
             
             brokenParts.add(
