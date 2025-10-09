@@ -19,6 +19,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.LaunchedEffect
 import ua.acclorite.book_story.presentation.core.util.noRippleClickable
 import ua.acclorite.book_story.presentation.core.components.common.SelectionContainer
 import ua.acclorite.book_story.presentation.core.components.common.StyledText
@@ -130,16 +132,19 @@ fun ReaderPagesLayout(
                                    start = sidePadding,
                                    end = sidePadding
                                )
+                               .onSizeChanged { size ->
+                                   Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex ACTUAL RENDERED HEIGHT: ${size.height}px")
+                               }
                        ) {
                            var isFirstElement = true
                            var totalElements = 0
                            var totalTextElements = 0
-                           var totalCalculatedHeight = 0
+                           var totalActualHeight = 0
                            
                            // Рассчитываем доступную высоту
                            val contentPaddingPx = contentPadding.calculateTopPadding() + contentPadding.calculateBottomPadding()
                            val verticalPaddingPx = verticalPadding * 2
-                           val sidePaddingPx = sidePadding * 2
+                           val sidePaddingPx = sidePadding * 2 * density.density
                            val availableWidth = screenWidth - sidePaddingPx.value.toInt()
                            // Применяем тот же коэффициент безопасности, что и в PageCalculator
                            val safetyMargin = 1.00f // 100% от доступной высоты (синхронизировано с PageCalculator)
@@ -159,14 +164,19 @@ fun ReaderPagesLayout(
                            Log.d("PAGE_RENDER_DEBUG", "=== Page $pageIndex Render Analysis ===")
                            Log.d("PAGE_RENDER_DEBUG", "Screen: ${screenWidth}x${screenHeight}")
                            Log.d("PAGE_RENDER_DEBUG", "Available: ${availableWidth}x${availableHeight} (with ${(safetyMargin * 100).toInt()}% safety margin)")
-                           
-                           // Подсчет высоты будет в конце после рендеринга всех элементов
+                           Log.d("PAGE_RENDER_DEBUG", "RENDERING ${page.content.size} elements from PageCalculator")
                            
                            for ((elementIndex, readerText) in page.content.withIndex()) {
                                // Добавляем интервал между элементами (кроме первого)
                                if (!isFirstElement) {
-                                   Spacer(modifier = Modifier.height(paragraphHeight))
-                                   totalCalculatedHeight += paragraphHeight.value.toInt()
+                                   Spacer(
+                                       modifier = Modifier
+                                           .height(paragraphHeight)
+                                           .onSizeChanged { size ->
+                                               Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex Element $elementIndex (Spacer) ACTUAL HEIGHT: ${size.height}px")
+                                               totalActualHeight += size.height
+                                           }
+                                   )
                                }
                                isFirstElement = false
                                totalElements++
@@ -174,20 +184,6 @@ fun ReaderPagesLayout(
                                when (readerText) {
                                    is ReaderText.Text -> {
                                        totalTextElements++
-                                       
-                                       // Рассчитываем высоту текста
-                                       val textHeight = TextMeasurementUtils.calculateTextHeight(
-                                           text = readerText.line.text,
-                                           textPaint = textPaint,
-                                           availableWidth = availableWidth,
-                                           fontSize = fontSize,
-                                           lineHeight = lineHeight,
-                                           paragraphIndentation = paragraphIndentation,
-                                           textAlignment = textAlignment
-                                       )
-                                       totalCalculatedHeight += textHeight
-                                       
-                                       Log.d("PAGE_RENDER_DEBUG", "Element $elementIndex (Text): ${textHeight}px - '${readerText.line.text.take(30)}...'")
                                        
                                        // Проверяем, является ли это разорванным параграфом
                                        // \u200B = продолжение, \u200C = первая часть
@@ -210,27 +206,24 @@ fun ReaderPagesLayout(
                                            ),
                                            highlightText = highlightedReading,
                                            highlightThickness = highlightedReadingThickness,
-                                           modifier = Modifier.fillMaxWidth()
+                                           modifier = Modifier
+                                               .fillMaxWidth()
+                                               .onSizeChanged { size ->
+                                                   Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex Element $elementIndex (Text) ACTUAL HEIGHT: ${size.height}px")
+                                                   totalActualHeight += size.height
+                                               }
                                        )
                                    }
                                    
                                    is ReaderText.Chapter -> {
-                                       // Рассчитываем высоту главы
-                                       val chapterHeight = TextMeasurementUtils.calculateChapterHeight(
-                                           title = readerText.title,
-                                           textPaint = textPaint,
-                                           availableWidth = availableWidth,
-                                           fontSize = fontSize,
-                                           lineHeight = lineHeight,
-                                           paragraphHeight = paragraphHeight,
-                                           density = density.density
-                                       )
-                                       totalCalculatedHeight += chapterHeight
-                                       Log.d("PAGE_RENDER_DEBUG", "Element $elementIndex (Chapter): ${chapterHeight}px - '${readerText.title.take(30)}...'")
-                                       
                                        // Рендерим главу как в Scroll режиме - с полоской
                                        Column(
-                                           modifier = Modifier.fillMaxWidth()
+                                           modifier = Modifier
+                                               .fillMaxWidth()
+                                               .onSizeChanged { size ->
+                                                   Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex Element $elementIndex (Chapter) ACTUAL HEIGHT: ${size.height}px")
+                                                   totalActualHeight += size.height
+                                               }
                                        ) {
                                            Spacer(modifier = Modifier.height(22.dp))
                                            
@@ -259,18 +252,6 @@ fun ReaderPagesLayout(
                                    }
                                    
                                    is ReaderText.Separator -> {
-                                       // Рассчитываем высоту разделителя
-                                       val separatorHeight = TextMeasurementUtils.calculateSeparatorHeight(
-                                           textPaint = textPaint,
-                                           availableWidth = availableWidth,
-                                           fontSize = fontSize,
-                                           lineHeight = lineHeight,
-                                           paragraphHeight = paragraphHeight,
-                                           density = density.density
-                                       )
-                                       totalCalculatedHeight += separatorHeight
-                                       Log.d("PAGE_RENDER_DEBUG", "Element $elementIndex (Separator): ${separatorHeight}px")
-                                       
                                        Text(
                                            text = "---",
                                            style = TextStyle(
@@ -284,24 +265,26 @@ fun ReaderPagesLayout(
                                            modifier = Modifier
                                                .fillMaxWidth()
                                                .padding(vertical = 16.dp)
+                                               .onSizeChanged { size ->
+                                                   Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex Element $elementIndex (Separator) ACTUAL HEIGHT: ${size.height}px")
+                                                   totalActualHeight += size.height
+                                               }
                                        )
                                    }
                                    
                                    is ReaderText.Image -> {
-                                       // Рассчитываем высоту изображения
-                                       val imageHeight = 200 // Фиксированная высота для изображений
-                                       totalCalculatedHeight += imageHeight
-                                       
-                                       Log.d("PAGE_RENDER_DEBUG", "Element $elementIndex (Image): ${imageHeight}px")
-                                       
                                        // Рендерим реальное изображение
                                        Image(
                                            bitmap = readerText.imageBitmap,
                                            contentDescription = "Изображение из книги",
                                            modifier = Modifier
                                                .fillMaxWidth()
-                                               .height(imageHeight.dp)
-                                               .padding(vertical = 16.dp),
+                                               .height(200.dp) // Синхронизировано с TextMeasurementUtils.calculateElementHeight
+                                               .padding(vertical = 16.dp)
+                                               .onSizeChanged { size ->
+                                                   Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex Element $elementIndex (Image) ACTUAL HEIGHT: ${size.height}px")
+                                                   totalActualHeight += size.height
+                                               },
                                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
                                        )
                                    }
@@ -312,15 +295,12 @@ fun ReaderPagesLayout(
                            Log.d("PAGE_RENDER_DEBUG", "=== Page $pageIndex Summary ===")
                            Log.d("PAGE_RENDER_DEBUG", "Total elements: $totalElements")
                            Log.d("PAGE_RENDER_DEBUG", "Total text elements: $totalTextElements")
-                           Log.d("PAGE_RENDER_DEBUG", "Total calculated height: ${totalCalculatedHeight}px")
-                           Log.d("PAGE_RENDER_DEBUG", "Available height: ${availableHeight}px")
-                           val difference = totalCalculatedHeight - availableHeight
-                           Log.d("PAGE_RENDER_DEBUG", "Difference: ${difference}px")
-                           Log.d("PAGE_RENDER_DEBUG", "Fits: ${totalCalculatedHeight <= availableHeight}")
-                           if (totalCalculatedHeight > availableHeight) {
-                               Log.d("PAGE_RENDER_DEBUG", "⚠️ OVERFLOW DETECTED! Page $pageIndex exceeds available height by ${difference}px")
-                           }
                            Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex rendering completed")
+                           
+                           // Логируем итоговую высоту после всех onSizeChanged
+                           LaunchedEffect(totalActualHeight) {
+                               Log.d("PAGE_RENDER_DEBUG", "TOTAL ACTUAL CONTENT HEIGHT: ${totalActualHeight}px")
+                           }
                        }
                    }
                }

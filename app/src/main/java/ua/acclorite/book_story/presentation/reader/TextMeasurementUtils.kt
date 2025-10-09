@@ -11,12 +11,15 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import ua.acclorite.book_story.domain.reader.ReaderFontThickness
 import ua.acclorite.book_story.domain.reader.ReaderTextAlignment
 import ua.acclorite.book_story.domain.reader.FontWithName
+import ua.acclorite.book_story.domain.reader.ReaderText
 
 object TextMeasurementUtils {
     
@@ -51,6 +54,19 @@ object TextMeasurementUtils {
     fun getLineSpacingMultiplier(lineHeight: TextUnit, fontSize: TextUnit): Float {
         val ratio = lineHeight.value / fontSize.value
         return if (ratio > 0f) ratio else 1f
+    }
+    
+    fun getFontWeight(fontThickness: ReaderFontThickness): FontWeight {
+        return fontThickness.thickness
+    }
+    
+    fun getTextAlign(textAlignment: ReaderTextAlignment): TextAlign {
+        return when (textAlignment) {
+            ReaderTextAlignment.START -> TextAlign.Start
+            ReaderTextAlignment.CENTER -> TextAlign.Center
+            ReaderTextAlignment.END -> TextAlign.End
+            ReaderTextAlignment.JUSTIFY -> TextAlign.Justify
+        }
     }
     
     fun calculateTextHeight(
@@ -88,7 +104,7 @@ object TextMeasurementUtils {
         density: Float
     ): Int {
         val titleTextPaint = TextPaint(textPaint).apply {
-            textSize = (fontSize * 1.2f).value * density
+            textSize = (fontSize * 1.2f).value // TextPaint уже умножен на density в createTextPaint
             isFakeBoldText = true
         }
 
@@ -126,5 +142,101 @@ object TextMeasurementUtils {
         val bottomPadding = (paragraphHeight.value * density * 0.8).toInt()
 
         return topPadding + staticLayout.height + bottomPadding
+    }
+    
+    /**
+     * Рассчитывает высоту одного элемента ReaderText.
+     * Это единственный источник истины для расчета высоты элементов.
+     */
+    fun calculateElementHeight(
+        readerText: ReaderText,
+        textPaint: TextPaint,
+        availableWidth: Int,
+        fontSize: TextUnit,
+        lineHeight: TextUnit,
+        paragraphIndentation: TextUnit,
+        paragraphHeight: Dp,
+        density: Float
+    ): Int {
+        return when (readerText) {
+            is ReaderText.Text -> {
+                calculateTextHeight(
+                    text = readerText.line.text,
+                    textPaint = textPaint,
+                    availableWidth = availableWidth,
+                    fontSize = fontSize,
+                    lineHeight = lineHeight,
+                    paragraphIndentation = paragraphIndentation,
+                    textAlignment = ReaderTextAlignment.START
+                )
+            }
+            
+            is ReaderText.Chapter -> {
+                calculateChapterHeight(
+                    title = readerText.title,
+                    textPaint = textPaint,
+                    availableWidth = availableWidth,
+                    fontSize = fontSize,
+                    lineHeight = lineHeight,
+                    paragraphHeight = paragraphHeight,
+                    density = density
+                )
+            }
+            
+            is ReaderText.Separator -> {
+                calculateSeparatorHeight(
+                    textPaint = textPaint,
+                    availableWidth = availableWidth,
+                    fontSize = fontSize,
+                    lineHeight = lineHeight,
+                    paragraphHeight = paragraphHeight,
+                    density = density
+                )
+            }
+            
+            is ReaderText.Image -> {
+                200 // Фиксированная высота для изображений
+            }
+        }
+    }
+    
+    /**
+     * Рассчитывает общую высоту страницы с учетом всех элементов и spacing между ними.
+     * Это единственный источник истины для расчета высоты страницы.
+     */
+    fun calculatePageHeight(
+        pageContent: List<ReaderText>,
+        textPaint: TextPaint,
+        availableWidth: Int,
+        fontSize: TextUnit,
+        lineHeight: TextUnit,
+        paragraphIndentation: TextUnit,
+        paragraphHeight: Dp,
+        density: Float,
+        textAlignment: ReaderTextAlignment
+    ): Int {
+        var totalHeight = 0
+        val paragraphSpacingPx = (paragraphHeight.value * density).toInt()
+        
+        for ((index, readerText) in pageContent.withIndex()) {
+            // Добавляем spacing между элементами (кроме первого)
+            if (index > 0) {
+                totalHeight += paragraphSpacingPx
+            }
+            
+            // Используем единую функцию для расчета высоты элемента
+            totalHeight += calculateElementHeight(
+                readerText = readerText,
+                textPaint = textPaint,
+                availableWidth = availableWidth,
+                fontSize = fontSize,
+                lineHeight = lineHeight,
+                paragraphIndentation = paragraphIndentation,
+                paragraphHeight = paragraphHeight,
+                density = density
+            )
+        }
+        
+        return totalHeight
     }
 }

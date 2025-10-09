@@ -146,9 +146,10 @@ data class ReaderScreen(val bookId: Int) : Screen, Parcelable {
         }
         val paragraphHeight = remember(
             mainState.value.paragraphHeight,
-            mainState.value.lineHeight
+            mainState.value.lineHeight,
+            density
         ) {
-            ((mainState.value.paragraphHeight * 3).dp).coerceAtLeast(
+            ((mainState.value.paragraphHeight.toFloat() * density.density).dp).coerceAtLeast(
                 with(density) { mainState.value.lineHeight.sp.toDp().value * 0.5f }.dp
             )
         }

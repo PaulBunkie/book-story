@@ -13,7 +13,8 @@ enum class ReaderHorizontalGesture {
     OFF,
     ON,
     INVERSE,
-    PAGES
+    PAGES,
+    EXPERIMENTAL
 }
 
 fun String.toHorizontalGesture(): ReaderHorizontalGesture {

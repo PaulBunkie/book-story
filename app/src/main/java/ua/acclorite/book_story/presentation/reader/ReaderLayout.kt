@@ -179,7 +179,7 @@ fun ReaderLayout(
                     isLoading = isLoading
                 )
         ) {
-            // Переключаемся между обычным режимом и Pages режимом
+            // Переключаемся между обычным режимом, Pages режимом и Experimental режимом
             if (horizontalGesture == ReaderHorizontalGesture.PAGES) {
                 // Pages режим
                 val configuration = LocalConfiguration.current
@@ -338,6 +338,95 @@ fun ReaderLayout(
                             }
                         }
                     }
+                }
+            } else if (horizontalGesture == ReaderHorizontalGesture.EXPERIMENTAL) {
+                // Experimental режим с красными точками для обрезанных строк
+                val configuration = LocalConfiguration.current
+                val density = LocalDensity.current
+                val screenWidth = (configuration.screenWidthDp * density.density).toInt()
+                val screenHeight = (configuration.screenHeightDp * density.density).toInt()
+                
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Основной контент - обычный LazyColumn
+                    LazyColumnWithScrollbar(
+                        state = listState,
+                        enableScrollbar = false,
+                        parentModifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            top = (WindowInsets.displayCutout.asPaddingValues()
+                                .calculateTopPadding() + paragraphHeight)
+                                .coerceAtLeast(18.dp),
+                            bottom = (WindowInsets.displayCutout.asPaddingValues()
+                                .calculateBottomPadding() + paragraphHeight)
+                                .coerceAtLeast(18.dp),
+                        )
+                    ) {
+                        itemsIndexed(
+                            text,
+                            key = { index, _ -> index }
+                        ) { index, entry ->
+                            when {
+                                !images && entry is ReaderText.Image -> return@itemsIndexed
+                                else -> {
+                                    SpacedItem(
+                                        index = index,
+                                        spacing = paragraphHeight
+                                    ) {
+                                        ReaderLayoutText(
+                                            activity = activity,
+                                            showMenu = showMenu,
+                                            entry = entry,
+                                            imagesCornersRoundness = imagesCornersRoundness,
+                                            imagesAlignment = imagesAlignment,
+                                            imagesWidth = imagesWidth,
+                                            imagesColorEffects = imagesColorEffects,
+                                            fontFamily = fontFamily,
+                                            fontColor = fontColor,
+                                            lineHeight = lineHeight,
+                                            fontThickness = fontThickness,
+                                            fontStyle = fontStyle,
+                                            chapterTitleAlignment = chapterTitleAlignment,
+                                            textAlignment = textAlignment,
+                                            horizontalAlignment = horizontalAlignment,
+                                            fontSize = fontSize,
+                                            letterSpacing = letterSpacing,
+                                            sidePadding = sidePadding,
+                                            paragraphIndentation = paragraphIndentation,
+                                            fullscreenMode = fullscreenMode,
+                                            doubleClickTranslation = doubleClickTranslation,
+                                            highlightedReading = highlightedReading,
+                                            highlightedReadingThickness = highlightedReadingThickness,
+                                            toolbarHidden = toolbarHidden,
+                                            openTranslator = openTranslator,
+                                            menuVisibility = menuVisibility
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Детектируем обрезанные строки и показываем красные точки
+                    val lineVisibilityState = TextLineVisibilityDetector(
+                        listState = listState,
+                        text = text,
+                        screenHeight = screenHeight,
+                        fontSize = fontSize,
+                        lineHeight = lineHeight,
+                        fontFamily = fontFamily,
+                        fontThickness = fontThickness,
+                        fontStyle = fontStyle,
+                        textAlignment = textAlignment,
+                        letterSpacing = letterSpacing,
+                        sidePadding = sidePadding
+                    )
+                    
+                    // Красные точки-индикаторы
+                    CutLineIndicators(
+                        visibilityState = lineVisibilityState,
+                        color = Color.Red
+                    )
                 }
             } else {
                 // Обычный режим с LazyColumn
