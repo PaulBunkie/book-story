@@ -206,9 +206,10 @@ fun ReaderLayout(
                     mutableStateOf<List<Page>?>(null) 
                 }
                 
-                // Используем PageLayoutMeasurer для точного расчета страниц ОДИН РАЗ
+                // Используем LazyPageLayoutMeasurer для ленивого расчета страниц
                 if (text.isNotEmpty() && pages == null) {
-                    PageLayoutMeasurer(
+                    LazyPageLayoutMeasurer(
+                        bookId = 0, // TODO: передать реальный bookId
                         text = text,
                         screenWidth = screenWidth,
                         screenHeight = screenHeight,
@@ -227,9 +228,13 @@ fun ReaderLayout(
                         fontColor = fontColor,
                         highlightedReading = highlightedReading,
                         highlightedReadingThickness = highlightedReadingThickness,
+                        initialPagesCount = 10,
                         onPagesCalculated = { calculatedPages ->
                             Log.d("READER_LAYOUT", "Pages calculated: ${calculatedPages.size}")
                             pages = calculatedPages
+                        },
+                        onTotalPagesEstimate = { estimatedTotal ->
+                            Log.d("READER_LAYOUT", "Estimated total pages: $estimatedTotal")
                         }
                     )
                 } else if (text.isEmpty()) {
