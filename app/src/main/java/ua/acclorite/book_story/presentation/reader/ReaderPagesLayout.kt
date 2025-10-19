@@ -128,10 +128,7 @@ fun ReaderPagesLayout(
                                .fillMaxSize()
                                .padding(contentPadding)
                                .padding(vertical = verticalPadding)
-                               .padding(
-                                   start = sidePadding,
-                                   end = sidePadding
-                               )
+                               .padding(horizontal = sidePadding)
                                .onSizeChanged { size ->
                                    Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex ACTUAL RENDERED HEIGHT: ${size.height}px")
                                }
@@ -237,15 +234,12 @@ fun ReaderPagesLayout(
                                                    lineHeight = lineHeight * 1.2f,
                                                    color = fontColor
                                                ),
-                                               modifier = Modifier
-                                                   .fillMaxWidth()
-                                                   .padding(horizontal = sidePadding)
+                                               modifier = Modifier.fillMaxWidth()
                                            )
                                            
                                            Spacer(modifier = Modifier.height(16.dp))
                                            HorizontalDivider(
-                                               color = fontColor.copy(0.4f),
-                                               modifier = Modifier.padding(horizontal = sidePadding)
+                                               color = fontColor.copy(0.4f)
                                            )
                                            Spacer(modifier = Modifier.height(16.dp))
                                        }

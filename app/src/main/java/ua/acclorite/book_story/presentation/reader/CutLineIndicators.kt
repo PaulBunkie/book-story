@@ -60,13 +60,13 @@ fun CutLineIndicators(
         ) {
             Box(
                 modifier = Modifier
-                    .padding(bottom = padding)
                     .size(size)
                     .background(
                         color = color,
                         shape = CircleShape
                     )
                     .align(Alignment.BottomCenter)
+                    .padding(bottom = padding)
             )
         }
     }

@@ -188,61 +188,42 @@ fun ReaderLayout(
                 val screenHeight = (configuration.screenHeightDp * density.density).toInt()
                 
                 var pages by remember(horizontalGesture) { mutableStateOf<List<Page>?>(null) }
-                var isLoadingPages by remember(horizontalGesture) { mutableStateOf(true) }
                 
-                LaunchedEffect(text, screenWidth, screenHeight, fontSize, lineHeight, sidePadding, paragraphHeight, fontFamily, fontThickness, fontStyle, textAlignment, letterSpacing, paragraphIndentation, contentPadding, verticalPadding, density.density) {
-                    Log.d("READER_LAYOUT", "=== Starting Pages mode calculation ===")
-                    Log.d("READER_LAYOUT", "Text items: ${text.size}")
-                    Log.d("READER_LAYOUT", "Screen: ${screenWidth}x${screenHeight}")
-                    
-                    // Не запускаем расчет если текст пустой
-                    if (text.isEmpty()) {
-                        Log.d("READER_LAYOUT", "Text is empty, skipping page calculation")
+                // Используем PageLayoutMeasurer для точного расчета страниц ОДИН РАЗ
+                if (text.isNotEmpty() && pages == null) {
+                    PageLayoutMeasurer(
+                        text = text,
+                        screenWidth = screenWidth,
+                        screenHeight = screenHeight,
+                        fontSize = fontSize,
+                        lineHeight = lineHeight,
+                        sidePadding = sidePadding,
+                        paragraphHeight = paragraphHeight,
+                        fontFamily = fontFamily,
+                        fontThickness = fontThickness,
+                        fontStyle = fontStyle,
+                        textAlignment = textAlignment,
+                        letterSpacing = letterSpacing,
+                        paragraphIndentation = paragraphIndentation,
+                        contentPadding = contentPadding,
+                        verticalPadding = verticalPadding,
+                        fontColor = fontColor,
+                        highlightedReading = highlightedReading,
+                        highlightedReadingThickness = highlightedReadingThickness,
+                        onPagesCalculated = { calculatedPages ->
+                            Log.d("READER_LAYOUT", "Pages calculated: ${calculatedPages.size}")
+                            pages = calculatedPages
+                        }
+                    )
+                } else if (text.isEmpty()) {
+                    LaunchedEffect(Unit) {
                         pages = emptyList()
-                        isLoadingPages = false
-                        return@LaunchedEffect
-                    }
-                    
-                    isLoadingPages = true
-                    try {
-                        Log.d("READER_LAYOUT", "Creating PageCalculator...")
-                        val calculator = PageCalculator()
-                        
-                        Log.d("READER_LAYOUT", "Calling calculatePages...")
-                        val calculatedPages = calculator.calculatePages(
-                            text = text,
-                            screenWidth = screenWidth,
-                            screenHeight = screenHeight,
-                            fontSize = fontSize,
-                            lineHeight = lineHeight,
-                            sidePadding = sidePadding,
-                            paragraphHeight = paragraphHeight,
-                            fontFamily = fontFamily,
-                            fontThickness = fontThickness,
-                            fontStyle = fontStyle,
-                            textAlignment = textAlignment,
-                            letterSpacing = letterSpacing,
-                            paragraphIndentation = paragraphIndentation,
-                            contentPadding = contentPadding,
-                            verticalPadding = verticalPadding,
-                            density = density.density
-                        )
-                        
-                        Log.d("READER_LAYOUT", "Pages calculation completed: ${calculatedPages.size} pages")
-                        pages = calculatedPages
-                    } catch (e: Exception) {
-                        Log.e("READER_LAYOUT", "Error calculating pages: ${e.message}", e)
-                        // В случае ошибки возвращаемся к обычному режиму
-                        pages = emptyList()
-                    } finally {
-                        Log.d("READER_LAYOUT", "Pages calculation finished")
-                        isLoadingPages = false
                     }
                 }
                 
                 val currentPages = pages
-                if (isLoadingPages || currentPages == null) {
-                    Log.d("READER_LAYOUT", "Showing loading indicator. isLoadingPages: $isLoadingPages, pages: ${currentPages?.size}")
+                if (currentPages == null) {
+                    Log.d("READER_LAYOUT", "Showing loading indicator, pages: null")
                     // Показываем индикатор загрузки
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -347,6 +328,14 @@ fun ReaderLayout(
                 val screenHeight = (configuration.screenHeightDp * density.density).toInt()
                 
                 Box(modifier = Modifier.fillMaxSize()) {
+                    // Вычисляем значения contentPadding для передачи в TextLineVisibilityDetector
+                    val contentPaddingTopValue = (WindowInsets.displayCutout.asPaddingValues()
+                        .calculateTopPadding() + paragraphHeight)
+                        .coerceAtLeast(18.dp)
+                    val contentPaddingBottomValue = (WindowInsets.displayCutout.asPaddingValues()
+                        .calculateBottomPadding() + paragraphHeight)
+                        .coerceAtLeast(18.dp)
+                    
                     // Основной контент - обычный LazyColumn
                     LazyColumnWithScrollbar(
                         state = listState,
@@ -354,12 +343,8 @@ fun ReaderLayout(
                         parentModifier = Modifier.fillMaxSize(),
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
-                            top = (WindowInsets.displayCutout.asPaddingValues()
-                                .calculateTopPadding() + paragraphHeight)
-                                .coerceAtLeast(18.dp),
-                            bottom = (WindowInsets.displayCutout.asPaddingValues()
-                                .calculateBottomPadding() + paragraphHeight)
-                                .coerceAtLeast(18.dp),
+                            top = contentPaddingTopValue,
+                            bottom = contentPaddingBottomValue,
                         )
                     ) {
                         itemsIndexed(
@@ -419,7 +404,10 @@ fun ReaderLayout(
                         fontStyle = fontStyle,
                         textAlignment = textAlignment,
                         letterSpacing = letterSpacing,
-                        sidePadding = sidePadding
+                        sidePadding = sidePadding,
+                        paragraphHeight = paragraphHeight,
+                        contentPaddingTop = contentPaddingTopValue,
+                        contentPaddingBottom = contentPaddingBottomValue
                     )
                     
                     // Красные точки-индикаторы

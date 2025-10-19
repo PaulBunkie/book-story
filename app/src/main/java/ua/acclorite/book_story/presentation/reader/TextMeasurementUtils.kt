@@ -56,6 +56,14 @@ object TextMeasurementUtils {
         return if (ratio > 0f) ratio else 1f
     }
     
+    fun getLineSpacingAdd(lineHeight: TextUnit, fontSize: TextUnit, density: Float): Float {
+        // Compose lineHeight - это абсолютная высота строки в sp
+        // StaticLayout lineSpacing работает как: height = baseHeight + add
+        // Поэтому add = (lineHeight - fontSize) в пикселях
+        val extraSpacing = (lineHeight.value - fontSize.value) * density
+        return extraSpacing.coerceAtLeast(0f)
+    }
+    
     fun getFontWeight(fontThickness: ReaderFontThickness): FontWeight {
         return fontThickness.thickness
     }

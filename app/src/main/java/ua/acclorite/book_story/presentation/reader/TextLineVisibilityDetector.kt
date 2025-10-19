@@ -49,7 +49,10 @@ fun TextLineVisibilityDetector(
     fontStyle: FontStyle,
     textAlignment: ReaderTextAlignment,
     letterSpacing: TextUnit,
-    sidePadding: Dp
+    sidePadding: Dp,
+    paragraphHeight: Dp,
+    contentPaddingTop: Dp,
+    contentPaddingBottom: Dp
 ): TextLineVisibilityState {
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
@@ -61,9 +64,12 @@ fun TextLineVisibilityDetector(
     var isTopLineCut = false
     var isBottomLineCut = false
     
+    val paragraphHeightPx = paragraphHeight.value * density.density
+    
     android.util.Log.d("TEXT_LINE_DETECTOR", "=== Text Line Detection ===")
     android.util.Log.d("TEXT_LINE_DETECTOR", "Visible items: ${visibleItems.size}")
     android.util.Log.d("TEXT_LINE_DETECTOR", "Screen height: $screenHeight")
+    android.util.Log.d("TEXT_LINE_DETECTOR", "paragraphHeight: ${paragraphHeight.value} dp = $paragraphHeightPx px")
     
     firstItem?.let { item ->
         android.util.Log.d("TEXT_LINE_DETECTOR", "First item: index=${item.index}, offset=${item.offset}, size=${item.size}")
@@ -110,7 +116,8 @@ fun TextLineVisibilityDetector(
                             fontThickness = fontThickness,
                             fontStyle = fontStyle,
                             textAlignment = textAlignment,
-                            letterSpacing = letterSpacing
+                            letterSpacing = letterSpacing,
+                            contentPaddingTopPx = contentPaddingTop.value * density.density
                         )
             }
         }
@@ -133,7 +140,8 @@ fun TextLineVisibilityDetector(
                             fontThickness = fontThickness,
                             fontStyle = fontStyle,
                             textAlignment = textAlignment,
-                            letterSpacing = letterSpacing
+                            letterSpacing = letterSpacing,
+                            contentPaddingBottomPx = contentPaddingBottom.value * density.density
                         )
             }
         }
@@ -159,7 +167,8 @@ private fun isTopLineCutWithTextMeasurer(
     fontThickness: ReaderFontThickness,
     fontStyle: FontStyle,
     textAlignment: ReaderTextAlignment,
-    letterSpacing: TextUnit
+    letterSpacing: TextUnit,
+    contentPaddingTopPx: Float
 ): Boolean {
     if (item.offset >= 0) {
         android.util.Log.d("TEXT_LINE_DETECTOR", "Top line check - offset >= 0, not cut")
@@ -190,8 +199,8 @@ private fun isTopLineCutWithTextMeasurer(
         constraints = constraints
     )
     
-    // 4. D - скрытое пространство сверху
-    val D = -item.offset.toFloat()
+    // 4. D - скрытое пространство сверху (вычитаем contentPadding)
+    val D = (-item.offset.toFloat() - contentPaddingTopPx).coerceAtLeast(0f)
     
     // 5. S_plus_I - точная высота строки из TextMeasurer
     val lineCount = textLayoutResult.lineCount
@@ -206,7 +215,8 @@ private fun isTopLineCutWithTextMeasurer(
     val threshold = S_plus_I * 0.2f  // Порог 20% от высоты строки
     val isCut = remainder > threshold  // Строка обрезана если остаток больше порога
     
-    android.util.Log.d("TEXT_LINE_DETECTOR", "Top line check (TextMeasurer) - D: $D, S_plus_I: $S_plus_I, N: $N, remainder: $remainder, threshold: $threshold, isCut: $isCut, lineCount: $lineCount, totalHeight: $totalHeight")
+    val textPreview = readerText.line.text.take(5)
+    android.util.Log.d("TEXT_LINE_DETECTOR", "Top line check (TextMeasurer) - text: '$textPreview', D: $D, S_plus_I: $S_plus_I, N: $N, remainder: $remainder, threshold: $threshold, isCut: $isCut, lineCount: $lineCount, totalHeight: $totalHeight")
     return isCut
 }
 
@@ -230,7 +240,7 @@ private fun isTopLineCut(
     
     // 1. Создаём StaticLayout с ВСЕМИ параметрами текста
     val text = readerText.line.text
-    val lineSpacingMultiplier = TextMeasurementUtils.getLineSpacingMultiplier(lineHeight, fontSize)
+    val lineSpacingAdd = TextMeasurementUtils.getLineSpacingAdd(lineHeight, fontSize, density)
     val layout = StaticLayout.Builder.obtain(
         text,
         0,
@@ -238,7 +248,7 @@ private fun isTopLineCut(
         textPaint,
         availableWidth
     )
-        .setLineSpacing(0f, lineSpacingMultiplier)
+        .setLineSpacing(lineSpacingAdd, 1.0f)
         .setIncludePad(false)
         .build()
 
@@ -273,7 +283,8 @@ private fun isBottomLineCutWithTextMeasurer(
     fontThickness: ReaderFontThickness,
     fontStyle: FontStyle,
     textAlignment: ReaderTextAlignment,
-    letterSpacing: TextUnit
+    letterSpacing: TextUnit,
+    contentPaddingBottomPx: Float
 ): Boolean {
     // 1. Создаём TextStyle с теми же параметрами
     val textStyle = TextStyle(
@@ -299,8 +310,8 @@ private fun isBottomLineCutWithTextMeasurer(
         constraints = constraints
     )
     
-    // 4. D - доступное пространство под последнюю секцию
-    val D = screenHeight - item.offset
+    // 4. D - доступное пространство под последнюю секцию (вычитаем contentPadding)
+    val D = (screenHeight - item.offset - contentPaddingBottomPx).coerceAtLeast(0f)
     
     // 5. S_plus_I - точная высота строки из TextMeasurer
     val lineCount = textLayoutResult.lineCount
@@ -315,7 +326,8 @@ private fun isBottomLineCutWithTextMeasurer(
     val threshold = S_plus_I * 0.2f  // Порог 20% от высоты строки
     val isCut = remainder > threshold  // Строка обрезана если остаток больше порога
     
-    android.util.Log.d("TEXT_LINE_DETECTOR", "Bottom line check (TextMeasurer) - D: $D, S_plus_I: $S_plus_I, N: $N, remainder: $remainder, threshold: $threshold, isCut: $isCut, lineCount: $lineCount, totalHeight: $totalHeight")
+    val textPreview = readerText.line.text.take(5)
+    android.util.Log.d("TEXT_LINE_DETECTOR", "Bottom line check (TextMeasurer) - text: '$textPreview', D: $D, S_plus_I: $S_plus_I, N: $N, remainder: $remainder, threshold: $threshold, isCut: $isCut, lineCount: $lineCount, totalHeight: $totalHeight")
     return isCut
 }
 
@@ -334,7 +346,7 @@ private fun isBottomLineCut(
 ): Boolean {
     // 1. Создаём StaticLayout с ВСЕМИ параметрами текста
     val text = readerText.line.text
-    val lineSpacingMultiplier = TextMeasurementUtils.getLineSpacingMultiplier(lineHeight, fontSize)
+    val lineSpacingAdd = TextMeasurementUtils.getLineSpacingAdd(lineHeight, fontSize, density)
     val layout = StaticLayout.Builder.obtain(
         text,
         0,
@@ -342,7 +354,7 @@ private fun isBottomLineCut(
         textPaint,
         availableWidth
     )
-        .setLineSpacing(0f, lineSpacingMultiplier)
+        .setLineSpacing(lineSpacingAdd, 1.0f)
         .setIncludePad(false)
         .build()
 
