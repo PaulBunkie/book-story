@@ -159,6 +159,7 @@ fun ReaderScaffold(
         }
     ) {
         ReaderLayout(
+            filePath = book.filePath,
             text = text,
             listState = listState,
             contentPadding = contentPadding,

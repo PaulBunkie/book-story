@@ -96,7 +96,7 @@ data class MainState(
     val customScreenBrightness: Boolean = provideDefaultValue { false },
     val screenBrightness: Float = provideDefaultValue { 0.5f },
     val horizontalGesture: ReaderHorizontalGesture = provideDefaultValue {
-        ReaderHorizontalGesture.ON // ВРЕМЕННО ДЛЯ ОТЛАДКИ
+        ReaderHorizontalGesture.OFF
     },
     val horizontalGestureScroll: Float = provideDefaultValue { 0.7f },
     val horizontalGestureSensitivity: Float = provideDefaultValue { 0.6f },
@@ -291,7 +291,9 @@ data class MainState(
                         SCREEN_BRIGHTNESS, convert = { this.toFloat() }
                     ) { screenBrightness },
 
-                    horizontalGesture = ReaderHorizontalGesture.ON, // ВРЕМЕННО ДЛЯ ОТЛАДКИ - ВСЕГДА ON
+                    horizontalGesture = provideValue(
+                        HORIZONTAL_GESTURE, convert = { ReaderHorizontalGesture.valueOf(this) }
+                    ) { horizontalGesture },
 
                     horizontalGestureScroll = provideValue(
                         HORIZONTAL_GESTURE_SCROLL, convert = { toFloat() }

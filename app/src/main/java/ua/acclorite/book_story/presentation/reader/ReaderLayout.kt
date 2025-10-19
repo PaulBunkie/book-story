@@ -59,6 +59,7 @@ import ua.acclorite.book_story.ui.reader.ReaderEvent
 
 @Composable
 fun ReaderLayout(
+    filePath: String,
     text: List<ReaderText>,
     listState: LazyListState,
     contentPadding: PaddingValues,
@@ -187,7 +188,23 @@ fun ReaderLayout(
                 val screenWidth = (configuration.screenWidthDp * density.density).toInt()
                 val screenHeight = (configuration.screenHeightDp * density.density).toInt()
                 
-                var pages by remember(horizontalGesture) { mutableStateOf<List<Page>?>(null) }
+                var pages by remember(
+                    filePath,
+                    fontSize,
+                    lineHeight,
+                    sidePadding,
+                    paragraphHeight,
+                    fontFamily,
+                    fontThickness,
+                    fontStyle,
+                    textAlignment,
+                    letterSpacing,
+                    paragraphIndentation,
+                    contentPadding,
+                    verticalPadding
+                ) { 
+                    mutableStateOf<List<Page>?>(null) 
+                }
                 
                 // Используем PageLayoutMeasurer для точного расчета страниц ОДИН РАЗ
                 if (text.isNotEmpty() && pages == null) {
@@ -222,16 +239,7 @@ fun ReaderLayout(
                 }
                 
                 val currentPages = pages
-                if (currentPages == null) {
-                    Log.d("READER_LAYOUT", "Showing loading indicator, pages: null")
-                    // Показываем индикатор загрузки
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // TODO: Добавить индикатор загрузки
-                    }
-                } else if (currentPages.isNotEmpty()) {
+                if (currentPages != null && currentPages.isNotEmpty()) {
                     Log.d("READER_LAYOUT", "Showing ReaderPagesLayout with ${currentPages.size} pages")
                     ReaderPagesLayout(
                         pages = currentPages,
@@ -432,7 +440,7 @@ fun ReaderLayout(
                             .coerceAtLeast(18.dp),
                     )
                 ) {
-                itemsIndexed(
+                    itemsIndexed(
                     text,
                     key = { index, _ -> index }
                 ) { index, entry ->
@@ -475,7 +483,7 @@ fun ReaderLayout(
                         }
                     }
                 }
-            }
+                }
             }
 
             AnimatedVisibility(
