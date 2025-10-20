@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.LaunchedEffect
@@ -212,7 +214,7 @@ fun ReaderPagesLayout(
                                    }
                                    
                                    is ReaderText.Chapter -> {
-                                       // Рендерим главу как в Scroll режиме - с полоской
+                                       // Рендерим главу ТОЧНО ТАК ЖЕ как в OFF режиме
                                        Column(
                                            modifier = Modifier
                                                .fillMaxWidth()
@@ -223,45 +225,36 @@ fun ReaderPagesLayout(
                                        ) {
                                            Spacer(modifier = Modifier.height(22.dp))
                                            
-                                           Text(
-                                               text = readerText.title,
-                                               style = TextStyle(
-                                                   fontFamily = fontFamily.font,
-                                                   fontWeight = FontWeight.Bold,
-                                                   textAlign = textAlignment.textAlignment,
-                                                   fontSize = fontSize * 1.2f,
-                                                   lineHeight = lineHeight * 1.2f,
-                                                   color = fontColor
-                                               ),
-                                               modifier = Modifier.fillMaxWidth()
+                                           StyledText(
+                                               text = buildAnnotatedString { append(readerText.title) },
+                                               modifier = Modifier.fillMaxWidth(),
+                                               style = (if (!readerText.nested) MaterialTheme.typography.headlineMedium
+                                               else MaterialTheme.typography.headlineSmall)
+                                                   .copy(
+                                                       color = fontColor,
+                                                       textAlign = textAlignment.textAlignment
+                                                   ),
+                                               highlightText = highlightedReading,
+                                               highlightThickness = highlightedReadingThickness
                                            )
                                            
                                            Spacer(modifier = Modifier.height(16.dp))
-                                           HorizontalDivider(
-                                               color = fontColor.copy(0.4f)
-                                           )
+                                           HorizontalDivider(color = fontColor.copy(0.4f))
                                            Spacer(modifier = Modifier.height(16.dp))
                                        }
                                    }
                                    
                                    is ReaderText.Separator -> {
-                                       Text(
-                                           text = "---",
-                                           style = TextStyle(
-                                               fontFamily = fontFamily.font,
-                                               fontWeight = fontThickness.thickness,
-                                               textAlign = TextAlign.Center,
-                                               fontSize = fontSize,
-                                               lineHeight = lineHeight,
-                                               color = fontColor
-                                           ),
+                                       // Рендерим разделитель ТОЧНО ТАК ЖЕ как в OFF режиме
+                                       HorizontalDivider(
+                                           thickness = 3.dp,
                                            modifier = Modifier
-                                               .fillMaxWidth()
-                                               .padding(vertical = 16.dp)
+                                               .clip(CircleShape)
                                                .onSizeChanged { size ->
                                                    Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex Element $elementIndex (Separator) ACTUAL HEIGHT: ${size.height}px")
                                                    totalActualHeight += size.height
-                                               }
+                                               },
+                                           color = fontColor.copy(0.3f)
                                        )
                                    }
                                    
