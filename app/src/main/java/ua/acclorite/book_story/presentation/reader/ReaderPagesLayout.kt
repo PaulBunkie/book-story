@@ -13,6 +13,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.HorizontalDivider
@@ -78,7 +79,12 @@ fun ReaderPagesLayout(
     onMenuVisibility: (ReaderEvent.OnMenuVisibility) -> Unit,
     // Параметры для подсветки чтения (как в обычном режиме)
     highlightedReading: Boolean,
-    highlightedReadingThickness: FontWeight
+    highlightedReadingThickness: FontWeight,
+    // Параметры для изображений
+    imagesCornersRoundness: Dp,
+    imagesAlignment: ua.acclorite.book_story.domain.util.HorizontalAlignment,
+    imagesWidth: Float,
+    imagesColorEffects: ColorFilter?
 ) {
     Log.d("READER_PAGES_LAYOUT", "=== Creating ReaderPagesLayout ===")
     Log.d("READER_PAGES_LAYOUT", "Pages count: ${pages.size}")
@@ -259,20 +265,26 @@ fun ReaderPagesLayout(
                                    }
                                    
                                    is ReaderText.Image -> {
-                                       // Рендерим реальное изображение
-                                       Image(
-                                           bitmap = readerText.imageBitmap,
-                                           contentDescription = "Изображение из книги",
+                                       // Рендерим изображение ТОЧНО ТАК ЖЕ как в OFF режиме
+                                       Box(
                                            modifier = Modifier
                                                .fillMaxWidth()
-                                               .height(200.dp) // Синхронизировано с TextMeasurementUtils.calculateElementHeight
-                                               .padding(vertical = 16.dp)
                                                .onSizeChanged { size ->
                                                    Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex Element $elementIndex (Image) ACTUAL HEIGHT: ${size.height}px")
                                                    totalActualHeight += size.height
                                                },
-                                           contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                                       )
+                                           contentAlignment = imagesAlignment.alignment
+                                       ) {
+                                           Image(
+                                               modifier = Modifier
+                                                   .clip(androidx.compose.foundation.shape.RoundedCornerShape(imagesCornersRoundness))
+                                                   .fillMaxWidth(imagesWidth),
+                                               bitmap = readerText.imageBitmap,
+                                               contentDescription = null,
+                                               colorFilter = imagesColorEffects,
+                                               contentScale = androidx.compose.ui.layout.ContentScale.FillWidth
+                                           )
+                                       }
                                    }
                                }
                            }

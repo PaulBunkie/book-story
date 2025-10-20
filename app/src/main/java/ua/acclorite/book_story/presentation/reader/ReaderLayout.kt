@@ -260,6 +260,10 @@ fun ReaderLayout(
                         fontColor = fontColor,
                         highlightedReading = highlightedReading,
                         highlightedReadingThickness = highlightedReadingThickness,
+                        imagesCornersRoundness = imagesCornersRoundness,
+                        imagesAlignment = imagesAlignment,
+                        imagesWidth = imagesWidth,
+                        imagesColorEffects = imagesColorEffects,
                         initialPagesCount = 5, // Начальные 5 страниц
                         onPagesCalculated = { calculatedPages ->
                             Log.d("READER_LAYOUT", "Initial pages calculated: ${calculatedPages.size}")
@@ -315,6 +319,10 @@ fun ReaderLayout(
                         fontColor = fontColor,
                         highlightedReading = highlightedReading,
                         highlightedReadingThickness = highlightedReadingThickness,
+                        imagesCornersRoundness = imagesCornersRoundness,
+                        imagesAlignment = imagesAlignment,
+                        imagesWidth = imagesWidth,
+                        imagesColorEffects = imagesColorEffects,
                         onPagesCalculated = { newPages ->
                             Log.d("READER_LAYOUT", "Loaded ${newPages.size} more pages")
                             val startIndex = pageCache.size
@@ -357,7 +365,11 @@ fun ReaderLayout(
                         fullscreenMode = fullscreenMode,
                         onMenuVisibility = menuVisibility,
                         highlightedReading = highlightedReading,
-                        highlightedReadingThickness = highlightedReadingThickness
+                        highlightedReadingThickness = highlightedReadingThickness,
+                        imagesCornersRoundness = imagesCornersRoundness,
+                        imagesAlignment = imagesAlignment,
+                        imagesWidth = imagesWidth,
+                        imagesColorEffects = imagesColorEffects
                     )
                 } else {
                     Log.d("READER_LAYOUT", "Pages calculation failed, showing fallback LazyColumn")

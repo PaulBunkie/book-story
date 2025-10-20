@@ -7,6 +7,8 @@
 package ua.acclorite.book_story.presentation.reader
 
 import android.util.Log
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +17,8 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -66,6 +70,10 @@ fun LazyPageLayoutMeasurer(
     fontColor: Color,
     highlightedReading: Boolean,
     highlightedReadingThickness: FontWeight,
+    imagesCornersRoundness: Dp,
+    imagesAlignment: ua.acclorite.book_story.domain.util.HorizontalAlignment,
+    imagesWidth: Float,
+    imagesColorEffects: ColorFilter?,
     initialPagesCount: Int = 5, // Сколько страниц считаем сразу
     onPagesCalculated: (List<Page>) -> Unit,
     onTotalPagesEstimate: (Int) -> Unit // Примерное количество страниц
@@ -132,6 +140,10 @@ fun LazyPageLayoutMeasurer(
                 fontColor = fontColor,
                 highlightedReading = highlightedReading,
                 highlightedReadingThickness = highlightedReadingThickness,
+                imagesCornersRoundness = imagesCornersRoundness,
+                imagesAlignment = imagesAlignment,
+                imagesWidth = imagesWidth,
+                imagesColorEffects = imagesColorEffects,
                 measurer = this,
                 measureConstraints = measureConstraints
             )
@@ -175,6 +187,10 @@ private fun calculateInitialPages(
     fontColor: Color,
     highlightedReading: Boolean,
     highlightedReadingThickness: FontWeight,
+    imagesCornersRoundness: Dp,
+    imagesAlignment: ua.acclorite.book_story.domain.util.HorizontalAlignment,
+    imagesWidth: Float,
+    imagesColorEffects: ColorFilter?,
     measurer: androidx.compose.ui.layout.SubcomposeMeasureScope,
     measureConstraints: Constraints
 ): List<Page> {
@@ -212,7 +228,11 @@ private fun calculateInitialPages(
                 paragraphHeight = paragraphHeight,
                 isFirstElement = currentPage.isEmpty(),
                 slotId = "element_$index",
-                density = density
+                density = density,
+                imagesCornersRoundness = imagesCornersRoundness,
+                imagesAlignment = imagesAlignment,
+                imagesWidth = imagesWidth,
+                imagesColorEffects = imagesColorEffects
             )
         }
 
@@ -283,7 +303,11 @@ private fun measureElement(
     paragraphHeight: Dp,
     isFirstElement: Boolean,
     slotId: String,
-    density: Float
+    density: Float,
+    imagesCornersRoundness: Dp,
+    imagesAlignment: ua.acclorite.book_story.domain.util.HorizontalAlignment,
+    imagesWidth: Float,
+    imagesColorEffects: ColorFilter?
 ): Int {
     return when (readerText) {
         is ReaderText.Text -> {
@@ -355,7 +379,24 @@ private fun measureElement(
         }
 
         is ReaderText.Image -> {
-            ((200 + 32) * density).toInt() // 200dp image + 32dp vertical padding
+            // Измеряем РЕАЛЬНУЮ высоту изображения через SubcomposeLayout
+            val placeable = measurer.subcompose(slotId) {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = imagesAlignment.alignment
+                ) {
+                    Image(
+                        modifier = Modifier
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(imagesCornersRoundness))
+                            .fillMaxWidth(imagesWidth),
+                        bitmap = readerText.imageBitmap,
+                        contentDescription = null,
+                        colorFilter = imagesColorEffects,
+                        contentScale = androidx.compose.ui.layout.ContentScale.FillWidth
+                    )
+                }
+            }.first().measure(constraints)
+            placeable.height
         }
     }
 }
@@ -386,6 +427,10 @@ fun calculatePageRangeComposable(
     fontColor: Color,
     highlightedReading: Boolean,
     highlightedReadingThickness: FontWeight,
+    imagesCornersRoundness: Dp,
+    imagesAlignment: ua.acclorite.book_story.domain.util.HorizontalAlignment,
+    imagesWidth: Float,
+    imagesColorEffects: ColorFilter?,
     onPagesCalculated: (List<Page>) -> Unit
 ) {
     val density = LocalDensity.current.density
@@ -439,6 +484,10 @@ fun calculatePageRangeComposable(
             fontColor = fontColor,
             highlightedReading = highlightedReading,
             highlightedReadingThickness = highlightedReadingThickness,
+            imagesCornersRoundness = imagesCornersRoundness,
+            imagesAlignment = imagesAlignment,
+            imagesWidth = imagesWidth,
+            imagesColorEffects = imagesColorEffects,
             measurer = this,
             measureConstraints = measureConstraints
         )
@@ -473,6 +522,10 @@ private fun calculatePagesFromElement(
     fontColor: Color,
     highlightedReading: Boolean,
     highlightedReadingThickness: FontWeight,
+    imagesCornersRoundness: Dp,
+    imagesAlignment: ua.acclorite.book_story.domain.util.HorizontalAlignment,
+    imagesWidth: Float,
+    imagesColorEffects: ColorFilter?,
     measurer: androidx.compose.ui.layout.SubcomposeMeasureScope,
     measureConstraints: Constraints
 ): List<Page> {
@@ -512,7 +565,11 @@ private fun calculatePagesFromElement(
                 paragraphHeight = paragraphHeight,
                 isFirstElement = (index == startElement),
                 slotId = "page_element_$index",
-                density = density
+                density = density,
+                imagesCornersRoundness = imagesCornersRoundness,
+                imagesAlignment = imagesAlignment,
+                imagesWidth = imagesWidth,
+                imagesColorEffects = imagesColorEffects
             )
         }
         
