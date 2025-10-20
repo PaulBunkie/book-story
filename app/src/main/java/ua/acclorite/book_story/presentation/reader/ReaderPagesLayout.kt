@@ -127,7 +127,6 @@ fun ReaderPagesLayout(
                            modifier = Modifier
                                .fillMaxSize()
                                .padding(contentPadding)
-                               .padding(vertical = verticalPadding)
                                .padding(horizontal = sidePadding)
                                .onSizeChanged { size ->
                                    Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex ACTUAL RENDERED HEIGHT: ${size.height}px")

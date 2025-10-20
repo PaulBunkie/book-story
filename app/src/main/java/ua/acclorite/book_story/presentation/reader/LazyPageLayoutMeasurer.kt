@@ -10,6 +10,8 @@ import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -28,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -76,19 +79,24 @@ fun LazyPageLayoutMeasurer(
     Log.d("LAZY_PAGE_MEASURER", "Initial pages to calculate: $initialPagesCount")
 
     // Рассчитываем доступное пространство
-    val contentPaddingPx = with(LocalDensity.current) {
+    val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+    val contentPaddingVerticalPx = with(LocalDensity.current) {
         (contentPadding.calculateTopPadding() + contentPadding.calculateBottomPadding()).toPx().toInt()
     }
+    val contentPaddingHorizontalPx = with(LocalDensity.current) {
+        (contentPadding.calculateStartPadding(layoutDirection) + contentPadding.calculateEndPadding(layoutDirection)).toPx().toInt()
+    }
     val verticalPaddingPx = with(LocalDensity.current) {
-        (verticalPadding * 2).toPx().toInt()
+        verticalPadding.toPx().toInt()
     }
     val sidePaddingPx = with(LocalDensity.current) {
-        (sidePadding * 2).toPx().toInt()
+        sidePadding.toPx().toInt()
     }
 
-    val availableWidth = screenWidth - sidePaddingPx
-    val availableHeight = screenHeight - contentPaddingPx - verticalPaddingPx
+    val availableWidth = screenWidth - sidePaddingPx - contentPaddingHorizontalPx
+    val availableHeight = screenHeight - contentPaddingVerticalPx - verticalPaddingPx
 
+    Log.d("LAZY_PAGE_MEASURER", "Margins: contentH=$contentPaddingHorizontalPx, contentV=$contentPaddingVerticalPx, sideP=$sidePaddingPx, vertP=$verticalPaddingPx")
     Log.d("LAZY_PAGE_MEASURER", "Available: ${availableWidth}x${availableHeight}")
 
     // SubcomposeLayout для измерения элементов ОДИН РАЗ
@@ -381,20 +389,24 @@ fun calculatePageRangeComposable(
     onPagesCalculated: (List<Page>) -> Unit
 ) {
     val density = LocalDensity.current.density
+    val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
     
     // Рассчитываем доступное пространство
-    val contentPaddingPx = with(LocalDensity.current) {
+    val contentPaddingVerticalPx = with(LocalDensity.current) {
         (contentPadding.calculateTopPadding() + contentPadding.calculateBottomPadding()).toPx().toInt()
     }
+    val contentPaddingHorizontalPx = with(LocalDensity.current) {
+        (contentPadding.calculateStartPadding(layoutDirection) + contentPadding.calculateEndPadding(layoutDirection)).toPx().toInt()
+    }
     val verticalPaddingPx = with(LocalDensity.current) {
-        (verticalPadding * 2).toPx().toInt()
+        verticalPadding.toPx().toInt()
     }
     val sidePaddingPx = with(LocalDensity.current) {
-        (sidePadding * 2).toPx().toInt()
+        sidePadding.toPx().toInt()
     }
     
-    val availableWidth = screenWidth - sidePaddingPx
-    val availableHeight = screenHeight - contentPaddingPx - verticalPaddingPx
+    val availableWidth = screenWidth - sidePaddingPx - contentPaddingHorizontalPx
+    val availableHeight = screenHeight - contentPaddingVerticalPx - verticalPaddingPx
     
     // SubcomposeLayout для измерения элементов
     SubcomposeLayout { constraints ->
