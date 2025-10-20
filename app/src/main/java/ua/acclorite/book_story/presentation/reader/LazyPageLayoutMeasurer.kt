@@ -87,10 +87,10 @@ fun LazyPageLayoutMeasurer(
         (contentPadding.calculateStartPadding(layoutDirection) + contentPadding.calculateEndPadding(layoutDirection)).toPx().toInt()
     }
     val verticalPaddingPx = with(LocalDensity.current) {
-        verticalPadding.toPx().toInt()
+        (verticalPadding * 2).toPx().toInt()
     }
     val sidePaddingPx = with(LocalDensity.current) {
-        sidePadding.toPx().toInt()
+        (sidePadding * 2).toPx().toInt()
     }
 
     val availableWidth = screenWidth - sidePaddingPx - contentPaddingHorizontalPx
@@ -399,10 +399,10 @@ fun calculatePageRangeComposable(
         (contentPadding.calculateStartPadding(layoutDirection) + contentPadding.calculateEndPadding(layoutDirection)).toPx().toInt()
     }
     val verticalPaddingPx = with(LocalDensity.current) {
-        verticalPadding.toPx().toInt()
+        (verticalPadding * 2).toPx().toInt()
     }
     val sidePaddingPx = with(LocalDensity.current) {
-        sidePadding.toPx().toInt()
+        (sidePadding * 2).toPx().toInt()
     }
     
     val availableWidth = screenWidth - sidePaddingPx - contentPaddingHorizontalPx
