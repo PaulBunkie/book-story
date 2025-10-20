@@ -26,8 +26,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import android.util.Log
@@ -182,13 +184,15 @@ fun ReaderLayout(
         ) {
             // Переключаемся между обычным режимом, Pages режимом и Experimental режимом
             if (horizontalGesture == ReaderHorizontalGesture.PAGES) {
-                // Pages режим
+                // Pages режим с ленивой загрузкой
                 val configuration = LocalConfiguration.current
                 val density = LocalDensity.current
                 val screenWidth = (configuration.screenWidthDp * density.density).toInt()
                 val screenHeight = (configuration.screenHeightDp * density.density).toInt()
+                val scope = rememberCoroutineScope()
                 
-                var pages by remember(
+                // Кэш страниц и текущая страница
+                val pageCache: androidx.compose.runtime.snapshots.SnapshotStateMap<Int, Page> = remember(
                     filePath,
                     fontSize,
                     lineHeight,
@@ -203,13 +207,41 @@ fun ReaderLayout(
                     contentPadding,
                     verticalPadding
                 ) { 
-                    mutableStateOf<List<Page>?>(null) 
+                    mutableStateMapOf<Int, Page>() 
                 }
                 
-                // Используем LazyPageLayoutMeasurer для ленивого расчета страниц
-                if (text.isNotEmpty() && pages == null) {
+                var currentPage by remember { mutableStateOf(0) }
+                var lastCalculatedElement by remember { mutableStateOf(0) }
+                var estimatedTotalPages by remember { mutableStateOf(0) }
+                
+                // Функция для загрузки страниц вокруг текущей
+                fun loadPagesAround(targetPage: Int) {
+                    val window = 2
+                    val neededRange = (targetPage - window).coerceAtLeast(0) until (targetPage + window + 1)
+                    
+                    // Проверяем какие страницы уже есть
+                    val missing = neededRange.filter { !pageCache.containsKey(it) }
+                    if (missing.isEmpty()) return
+                    
+                    Log.d("READER_LAYOUT", "Loading pages around $targetPage: $missing")
+                    
+                    // Определяем с какого элемента начинать расчет
+                    val startElement = if (targetPage > 0 && pageCache.containsKey(targetPage - 1)) {
+                        pageCache[targetPage - 1]!!.endIndex + 1
+                    } else {
+                        lastCalculatedElement
+                    }
+                    
+                    if (startElement >= text.size) return
+                    
+                    // Здесь будем вызывать calculatePageRangeComposable
+                    // Но для этого нужен отдельный composable, так что пока пропустим
+                }
+                
+                // Инициализация - загружаем первые 5 страниц
+                if (text.isNotEmpty() && pageCache.isEmpty()) {
                     LazyPageLayoutMeasurer(
-                        bookId = 0, // TODO: передать реальный bookId
+                        bookId = 0,
                         text = text,
                         screenWidth = screenWidth,
                         screenHeight = screenHeight,
@@ -228,26 +260,83 @@ fun ReaderLayout(
                         fontColor = fontColor,
                         highlightedReading = highlightedReading,
                         highlightedReadingThickness = highlightedReadingThickness,
-                        initialPagesCount = 10,
+                        initialPagesCount = 5, // Начальные 5 страниц
                         onPagesCalculated = { calculatedPages ->
-                            Log.d("READER_LAYOUT", "Pages calculated: ${calculatedPages.size}")
-                            pages = calculatedPages
+                            Log.d("READER_LAYOUT", "Initial pages calculated: ${calculatedPages.size}")
+                            calculatedPages.forEachIndexed { index, page ->
+                                pageCache[index] = page
+                                if (index == calculatedPages.size - 1) {
+                                    lastCalculatedElement = page.endIndex + 1
+                                }
+                            }
                         },
                         onTotalPagesEstimate = { estimatedTotal ->
                             Log.d("READER_LAYOUT", "Estimated total pages: $estimatedTotal")
+                            estimatedTotalPages = estimatedTotal
                         }
                     )
-                } else if (text.isEmpty()) {
-                    LaunchedEffect(Unit) {
-                        pages = emptyList()
+                }
+                
+                // Собираем список страниц для HorizontalPager
+                val pages = (0 until pageCache.size).mapNotNull { pageCache[it] }
+                
+                // Флаг для запроса догрузки страниц
+                var requestLoadMore by remember { mutableStateOf(0) }
+                
+                // Автоматическая догрузка страниц ПОСЛЕ перелистывания
+                LaunchedEffect(currentPage) {
+                    // Проверяем нужна ли догрузка
+                    if (currentPage >= pages.size - 2 && lastCalculatedElement < text.size) {
+                        Log.d("READER_LAYOUT", "Requesting load of next pages after scroll to page $currentPage")
+                        requestLoadMore++ // Увеличиваем счетчик чтобы запустить новую загрузку
                     }
                 }
                 
-                val currentPages = pages
-                if (currentPages != null && currentPages.isNotEmpty()) {
-                    Log.d("READER_LAYOUT", "Showing ReaderPagesLayout with ${currentPages.size} pages")
+                // Composable для догрузки страниц (запускается асинхронно)
+                if (requestLoadMore > 0 && lastCalculatedElement < text.size) {
+                    calculatePageRangeComposable(
+                        text = text,
+                        startElement = lastCalculatedElement,
+                        pagesToCalculate = 5,
+                        screenWidth = screenWidth,
+                        screenHeight = screenHeight,
+                        fontSize = fontSize,
+                        lineHeight = lineHeight,
+                        sidePadding = sidePadding,
+                        paragraphHeight = paragraphHeight,
+                        fontFamily = fontFamily,
+                        fontThickness = fontThickness,
+                        fontStyle = fontStyle,
+                        textAlignment = textAlignment,
+                        letterSpacing = letterSpacing,
+                        paragraphIndentation = paragraphIndentation,
+                        contentPadding = contentPadding,
+                        verticalPadding = verticalPadding,
+                        fontColor = fontColor,
+                        highlightedReading = highlightedReading,
+                        highlightedReadingThickness = highlightedReadingThickness,
+                        onPagesCalculated = { newPages ->
+                            Log.d("READER_LAYOUT", "Loaded ${newPages.size} more pages")
+                            val startIndex = pageCache.size
+                            newPages.forEachIndexed { index, page ->
+                                pageCache[startIndex + index] = page
+                                if (index == newPages.size - 1) {
+                                    lastCalculatedElement = page.endIndex + 1
+                                }
+                            }
+                            requestLoadMore = 0 // Сбрасываем флаг после завершения
+                        }
+                    )
+                }
+                
+                if (pages.isNotEmpty()) {
+                    Log.d("READER_LAYOUT", "Showing ReaderPagesLayout with ${pages.size} pages")
                     ReaderPagesLayout(
-                        pages = currentPages,
+                        pages = pages,
+                        onPageChanged = { newPage ->
+                            Log.d("READER_LAYOUT", "Page changed to: $newPage")
+                            currentPage = newPage
+                        },
                         activity = activity,
                         screenWidth = screenWidth,
                         screenHeight = screenHeight,
@@ -264,7 +353,6 @@ fun ReaderLayout(
                         paragraphHeight = paragraphHeight,
                         contentPadding = contentPadding,
                         verticalPadding = verticalPadding,
-                        onPageChanged = { /* TODO: Handle page change */ },
                         showMenu = showMenu,
                         fullscreenMode = fullscreenMode,
                         onMenuVisibility = menuVisibility,

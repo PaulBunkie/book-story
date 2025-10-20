@@ -352,3 +352,206 @@ private fun measureElement(
     }
 }
 
+/**
+ * Рассчитать диапазон страниц начиная с определенного элемента
+ * Используется для ленивой загрузки страниц по мере прокрутки
+ */
+@Composable
+fun calculatePageRangeComposable(
+    text: List<ReaderText>,
+    startElement: Int,
+    pagesToCalculate: Int,
+    screenWidth: Int,
+    screenHeight: Int,
+    fontSize: TextUnit,
+    lineHeight: TextUnit,
+    sidePadding: Dp,
+    paragraphHeight: Dp,
+    fontFamily: FontWithName,
+    fontThickness: ReaderFontThickness,
+    fontStyle: FontStyle,
+    textAlignment: ReaderTextAlignment,
+    letterSpacing: TextUnit,
+    paragraphIndentation: TextUnit,
+    contentPadding: PaddingValues,
+    verticalPadding: Dp,
+    fontColor: Color,
+    highlightedReading: Boolean,
+    highlightedReadingThickness: FontWeight,
+    onPagesCalculated: (List<Page>) -> Unit
+) {
+    val density = LocalDensity.current.density
+    
+    // Рассчитываем доступное пространство
+    val contentPaddingPx = with(LocalDensity.current) {
+        (contentPadding.calculateTopPadding() + contentPadding.calculateBottomPadding()).toPx().toInt()
+    }
+    val verticalPaddingPx = with(LocalDensity.current) {
+        (verticalPadding * 2).toPx().toInt()
+    }
+    val sidePaddingPx = with(LocalDensity.current) {
+        (sidePadding * 2).toPx().toInt()
+    }
+    
+    val availableWidth = screenWidth - sidePaddingPx
+    val availableHeight = screenHeight - contentPaddingPx - verticalPaddingPx
+    
+    // SubcomposeLayout для измерения элементов
+    SubcomposeLayout { constraints ->
+        val measureConstraints = Constraints(
+            minWidth = availableWidth,
+            maxWidth = availableWidth,
+            minHeight = 0,
+            maxHeight = Constraints.Infinity
+        )
+        
+        val elementHeights = mutableMapOf<Int, Int>()
+        
+        val pages = calculatePagesFromElement(
+            text = text,
+            startElement = startElement,
+            pagesToCalculate = pagesToCalculate,
+            availableWidth = availableWidth,
+            availableHeight = availableHeight,
+            density = density,
+            elementHeights = elementHeights,
+            paragraphHeight = paragraphHeight,
+            fontSize = fontSize,
+            lineHeight = lineHeight,
+            fontFamily = fontFamily,
+            fontThickness = fontThickness,
+            fontStyle = fontStyle,
+            textAlignment = textAlignment,
+            letterSpacing = letterSpacing,
+            paragraphIndentation = paragraphIndentation,
+            fontColor = fontColor,
+            highlightedReading = highlightedReading,
+            highlightedReadingThickness = highlightedReadingThickness,
+            measurer = this,
+            measureConstraints = measureConstraints
+        )
+        
+        onPagesCalculated(pages)
+        
+        // Layout не рисует ничего - только измеряет
+        layout(0, 0) {}
+    }
+}
+
+/**
+ * Внутренняя функция для расчета страниц начиная с определенного элемента
+ */
+private fun calculatePagesFromElement(
+    text: List<ReaderText>,
+    startElement: Int,
+    pagesToCalculate: Int,
+    availableWidth: Int,
+    availableHeight: Int,
+    density: Float,
+    elementHeights: MutableMap<Int, Int>,
+    paragraphHeight: Dp,
+    fontSize: TextUnit,
+    lineHeight: TextUnit,
+    fontFamily: FontWithName,
+    fontThickness: ReaderFontThickness,
+    fontStyle: FontStyle,
+    textAlignment: ReaderTextAlignment,
+    letterSpacing: TextUnit,
+    paragraphIndentation: TextUnit,
+    fontColor: Color,
+    highlightedReading: Boolean,
+    highlightedReadingThickness: FontWeight,
+    measurer: androidx.compose.ui.layout.SubcomposeMeasureScope,
+    measureConstraints: Constraints
+): List<Page> {
+    val pages = mutableListOf<Page>()
+    var currentPage = mutableListOf<ReaderText>()
+    var currentPageHeight = 0
+    var pageStartIndex = startElement
+    var pagesCalculated = 0
+    
+    Log.d("LAZY_PAGE_MEASURER", "=== Calculating pages from element $startElement ===")
+    
+    for (index in startElement until text.size) {
+        // Останавливаемся после расчёта нужного количества страниц
+        if (pagesCalculated >= pagesToCalculate) {
+            break
+        }
+        
+        val readerText = text[index]
+        
+        // Измеряем элемент (с кешем)
+        val elementHeight = elementHeights.getOrPut(index) {
+            measureElement(
+                measurer = measurer,
+                readerText = readerText,
+                constraints = measureConstraints,
+                fontSize = fontSize,
+                lineHeight = lineHeight,
+                fontFamily = fontFamily,
+                fontThickness = fontThickness,
+                fontStyle = fontStyle,
+                textAlignment = textAlignment,
+                letterSpacing = letterSpacing,
+                paragraphIndentation = paragraphIndentation,
+                fontColor = fontColor,
+                highlightedReading = highlightedReading,
+                highlightedReadingThickness = highlightedReadingThickness,
+                paragraphHeight = paragraphHeight,
+                isFirstElement = (index == startElement),
+                slotId = "page_element_$index",
+                density = density
+            )
+        }
+        
+        Log.d("LAZY_PAGE_MEASURER", "Element $index: ${readerText.javaClass.simpleName}, height=$elementHeight")
+        
+        // Проверяем влезет ли элемент на текущую страницу
+        val paragraphSpacingPx = if (currentPage.isNotEmpty()) {
+            (paragraphHeight.value * density).toInt()
+        } else 0
+        
+        if (currentPageHeight + paragraphSpacingPx + elementHeight <= availableHeight) {
+            // Влезает - добавляем на текущую страницу
+            currentPage.add(readerText)
+            currentPageHeight += paragraphSpacingPx + elementHeight
+            Log.d("LAZY_PAGE_MEASURER", "  -> Added to page $pagesCalculated, height now: $currentPageHeight/$availableHeight")
+        } else {
+            // Не влезает - завершаем текущую страницу и начинаем новую
+            if (currentPage.isNotEmpty()) {
+                Log.d("LAZY_PAGE_MEASURER", "Page $pagesCalculated completed: ${currentPage.size} elements, height=$currentPageHeight")
+                pages.add(
+                    Page(
+                        content = currentPage.toList(),
+                        startIndex = pageStartIndex,
+                        endIndex = index - 1
+                    )
+                )
+                pagesCalculated++
+            }
+            
+            // Начинаем новую страницу с текущего элемента
+            currentPage = mutableListOf(readerText)
+            currentPageHeight = elementHeight
+            pageStartIndex = index
+            Log.d("LAZY_PAGE_MEASURER", "  -> Started new page $pagesCalculated, height: $elementHeight/$availableHeight")
+        }
+    }
+    
+    // Добавляем последнюю страницу если она не пустая
+    if (currentPage.isNotEmpty() && pagesCalculated < pagesToCalculate) {
+        Log.d("LAZY_PAGE_MEASURER", "Final page $pagesCalculated: ${currentPage.size} elements, height=$currentPageHeight")
+        pages.add(
+            Page(
+                content = currentPage,
+                startIndex = pageStartIndex,
+                endIndex = text.size - 1
+            )
+        )
+    }
+    
+    Log.d("LAZY_PAGE_MEASURER", "=== Calculated ${pages.size} pages starting from element $startElement ===")
+    
+    return pages
+}
+
