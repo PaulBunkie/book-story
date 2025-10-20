@@ -105,7 +105,8 @@ fun ReaderContent(
     showChaptersDrawer: (ReaderEvent.OnShowChaptersDrawer) -> Unit,
     dismissDrawer: (ReaderEvent.OnDismissDrawer) -> Unit,
     navigateToBookInfo: (changePath: Boolean) -> Unit,
-    navigateBack: () -> Unit
+    navigateBack: () -> Unit,
+    updatePagesProgress: (currentPage: Int, totalPages: Int, currentElementIndex: Int) -> Unit
 ) {
     ReaderBottomSheet(
         bottomSheet = bottomSheet,
@@ -180,7 +181,8 @@ fun ReaderContent(
             showSettingsBottomSheet = showSettingsBottomSheet,
             showChaptersDrawer = showChaptersDrawer,
             navigateBack = navigateBack,
-            navigateToBookInfo = navigateToBookInfo
+            navigateToBookInfo = navigateToBookInfo,
+            updatePagesProgress = updatePagesProgress
         )
     } else {
         ReaderErrorPlaceholder(

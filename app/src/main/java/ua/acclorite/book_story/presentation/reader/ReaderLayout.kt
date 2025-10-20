@@ -105,7 +105,8 @@ fun ReaderLayout(
     openShareApp: (ReaderEvent.OnOpenShareApp) -> Unit,
     openWebBrowser: (ReaderEvent.OnOpenWebBrowser) -> Unit,
     openTranslator: (ReaderEvent.OnOpenTranslator) -> Unit,
-    openDictionary: (ReaderEvent.OnOpenDictionary) -> Unit
+    openDictionary: (ReaderEvent.OnOpenDictionary) -> Unit,
+    updatePagesProgress: (currentPage: Int, totalPages: Int, currentElementIndex: Int) -> Unit
 ) {
     val activity = LocalActivity.current
     SelectionContainer(
@@ -288,7 +289,16 @@ fun ReaderLayout(
                 var requestLoadMore by remember { mutableStateOf(0) }
                 
                 // Автоматическая догрузка страниц ПОСЛЕ перелистывания
-                LaunchedEffect(currentPage) {
+                LaunchedEffect(currentPage, pages.size, estimatedTotalPages) {
+                    // Обновляем прогресс чтения
+                    if (pages.isNotEmpty() && currentPage < pages.size) {
+                        val currentPageData = pages.getOrNull(currentPage)
+                        val currentElementIndex = currentPageData?.startIndex ?: 0
+                        val totalPages = if (estimatedTotalPages > 0) estimatedTotalPages else pages.size
+                        updatePagesProgress(currentPage, totalPages, currentElementIndex)
+                        Log.d("READER_LAYOUT", "Progress updated: page $currentPage/$totalPages, element $currentElementIndex/${text.size}")
+                    }
+                    
                     // Проверяем нужна ли догрузка
                     if (currentPage >= pages.size - 2 && lastCalculatedElement < text.size) {
                         Log.d("READER_LAYOUT", "Requesting load of next pages after scroll to page $currentPage")

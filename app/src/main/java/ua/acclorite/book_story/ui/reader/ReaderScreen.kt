@@ -475,6 +475,7 @@ data class ReaderScreen(val bookId: Int) : Screen, Parcelable {
             navigateBack = {
                 navigator.pop()
             },
+            updatePagesProgress = screenModel::updateProgressForPages,
             navigateToBookInfo = { changePath ->
                 if (changePath) BookInfoScreen.changePathChannel.trySend(true)
                 navigator.push(

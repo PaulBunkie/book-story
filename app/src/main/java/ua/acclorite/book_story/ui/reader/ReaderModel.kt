@@ -591,6 +591,59 @@ class ReaderModel @Inject constructor(
         }
     }
 
+    fun updateProgressForPages(currentPage: Int, totalPages: Int, currentElementIndex: Int) {
+        viewModelScope.launch(Dispatchers.Main) {
+            val progress = calculateProgressForPages(currentPage, totalPages, currentElementIndex)
+            if (progress == _state.value.book.progress) return@launch
+            val (currentChapter, currentChapterProgress) = calculateCurrentChapter(currentElementIndex)
+
+            Log.i(
+                READER,
+                "Changed progress|currentChapter (Pages): $progress; ${currentChapter?.title}"
+            )
+            _state.update {
+                it.copy(
+                    book = it.book.copy(
+                        progress = progress,
+                        scrollIndex = currentElementIndex,
+                        scrollOffset = 0
+                    ),
+                    currentChapter = currentChapter,
+                    currentChapterProgress = currentChapterProgress
+                )
+            }
+
+            updateBook.execute(_state.value.book)
+
+            LibraryScreen.refreshListChannel.trySend(0)
+            HistoryScreen.refreshListChannel.trySend(0)
+        }
+    }
+
+    private fun calculateProgressForPages(currentPage: Int, totalPages: Int, currentElementIndex: Int): Float {
+        return _state.value.run {
+            if (
+                isLoading ||
+                text.isEmpty() ||
+                errorMessage != null ||
+                totalPages == 0
+            ) {
+                return book.progress
+            }
+
+            if (currentPage == 0) {
+                return 0f
+            }
+
+            if (currentPage >= totalPages - 1) {
+                return 1f
+            }
+
+            // Используем индекс текущего элемента для более точного прогресса
+            return currentElementIndex.div(text.lastIndex.toFloat()).coerceAndPreventNaN()
+        }
+    }
+
     private fun calculateProgress(firstVisibleItemIndex: Int? = null): Float {
         return _state.value.run {
             if (

@@ -106,7 +106,8 @@ fun ReaderScaffold(
     showSettingsBottomSheet: (ReaderEvent.OnShowSettingsBottomSheet) -> Unit,
     showChaptersDrawer: (ReaderEvent.OnShowChaptersDrawer) -> Unit,
     navigateToBookInfo: (changePath: Boolean) -> Unit,
-    navigateBack: () -> Unit
+    navigateBack: () -> Unit,
+    updatePagesProgress: (currentPage: Int, totalPages: Int, currentElementIndex: Int) -> Unit
 ) {
     Scaffold(
         Modifier
@@ -203,7 +204,8 @@ fun ReaderScaffold(
             openShareApp = openShareApp,
             openWebBrowser = openWebBrowser,
             openTranslator = openTranslator,
-            openDictionary = openDictionary
+            openDictionary = openDictionary,
+            updatePagesProgress = updatePagesProgress
         )
 
         ReaderPerceptionExpander(
