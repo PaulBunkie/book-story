@@ -270,13 +270,13 @@ fun ReaderLayout(
                         }
                         
                         // Проверяем нужна ли догрузка
-                        if (currentPage >= pages.size - 2 && lastCalculatedElement < text.size) {
+                        if (currentPage >= pages.size - 2 && lastCalculatedElement < text.lastIndex) {
                             requestLoadMore++
                         }
                     }
                     
                     // Догрузка страниц
-                    if (requestLoadMore > 0 && lastCalculatedElement < text.size) {
+                    if (requestLoadMore > 0 && lastCalculatedElement < text.lastIndex) {
                         calculatePageRangeComposable(
                             text = text,
                             startElement = if (lastCarryOverText != null) lastCalculatedElement else lastCalculatedElement + 1,

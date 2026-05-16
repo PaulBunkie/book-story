@@ -348,7 +348,7 @@ private fun calculatePagesCore(
         pages.add(Page(
             content = currentPage.toList(),
             startIndex = pageStartIndex,
-            endIndex = text.lastIndex.coerceAtMost(index),
+            endIndex = if (remainingTextPart != null) index else index - 1,
             carryOverText = remainingTextPart
         ))
     }
