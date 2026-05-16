@@ -30,6 +30,9 @@ import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.runtime.key
 import ua.acclorite.book_story.domain.reader.FontWithName
 import ua.acclorite.book_story.domain.reader.ReaderFontThickness
@@ -146,7 +149,13 @@ fun ReaderPagesLayout(
                                         fontSize = fontSize,
                                         lineHeight = lineHeight,
                                         color = fontColor,
-                                        lineBreak = LineBreak.Paragraph // Use Paragraph everywhere to avoid word breaking
+                                        lineBreak = LineBreak.Paragraph,
+                                        textDirection = TextDirection.Content,
+                                        platformStyle = PlatformTextStyle(includeFontPadding = false),
+                                        lineHeightStyle = LineHeightStyle(
+                                            alignment = LineHeightStyle.Alignment.Center,
+                                            trim = LineHeightStyle.Trim.None
+                                        )
                                     ),
                                     highlightText = highlightedReading,
                                     highlightThickness = highlightedReadingThickness,
@@ -165,7 +174,13 @@ fun ReaderPagesLayout(
                                         else MaterialTheme.typography.headlineSmall)
                                             .copy(
                                                 color = fontColor,
-                                                textAlign = textAlignment.textAlignment
+                                                textAlign = textAlignment.textAlignment,
+                                                textDirection = TextDirection.Content,
+                                                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                                                lineHeightStyle = LineHeightStyle(
+                                                    alignment = LineHeightStyle.Alignment.Center,
+                                                    trim = LineHeightStyle.Trim.None
+                                                )
                                             ),
                                         highlightText = highlightedReading,
                                         highlightThickness = highlightedReadingThickness

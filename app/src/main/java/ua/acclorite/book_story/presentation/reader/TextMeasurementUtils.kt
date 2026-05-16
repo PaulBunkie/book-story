@@ -61,9 +61,6 @@ object TextMeasurementUtils {
     }
     
     fun getLineSpacingAdd(lineHeight: TextUnit, fontSize: TextUnit, density: Float): Float {
-        // Compose lineHeight - это абсолютная высота строки в sp
-        // StaticLayout lineSpacing работает как: height = baseHeight + add
-        // Поэтому add = (lineHeight - fontSize) в пикселях
         val extraSpacing = (lineHeight.value - fontSize.value) * density
         return extraSpacing.coerceAtLeast(0f)
     }
@@ -130,10 +127,7 @@ object TextMeasurementUtils {
         paragraphIndentation: TextUnit,
         textAlignment: ReaderTextAlignment
     ): Int {
-        // Используем оригинальный текст без добавления пробелов
-        // Отступ первой строки будет учитываться в рендере
         val indentedText = text
-        
         val lineSpacingMultiplier = getLineSpacingMultiplier(lineHeight, fontSize)
         
         val staticLayout = StaticLayout.Builder
@@ -152,11 +146,10 @@ object TextMeasurementUtils {
         availableWidth: Int,
         fontSize: TextUnit,
         lineHeight: TextUnit,
-        paragraphHeight: Dp,
         density: Float
     ): Int {
         val titleTextPaint = TextPaint(textPaint).apply {
-            textSize = (fontSize * 1.2f).value // TextPaint уже умножен на density в createTextPaint
+            textSize = (fontSize * 1.2f).value
             isFakeBoldText = true
         }
 
@@ -167,39 +160,23 @@ object TextMeasurementUtils {
             .setIncludePad(false)
             .build()
 
-        val topSpacer = (22.dp.value * density).toInt()     // Реальное значение из рендера
-        val bottomSpacer1 = (16.dp.value * density).toInt() // Реальное значение из рендера
-        val bottomSpacer2 = (16.dp.value * density).toInt() // Реальное значение из рендера
+        val topSpacer = (22.dp.value * density).roundToInt()
+        val bottomSpacer1 = (16.dp.value * density).roundToInt()
+        val bottomSpacer2 = (16.dp.value * density).roundToInt()
+        val dividerHeight = (1.dp.value * density).roundToInt()
 
-        return topSpacer + staticLayout.height + bottomSpacer1 + bottomSpacer2
+        return topSpacer + staticLayout.height + bottomSpacer1 + dividerHeight + bottomSpacer2
     }
     
     fun calculateSeparatorHeight(
         textPaint: TextPaint,
         availableWidth: Int,
-        fontSize: TextUnit,
-        lineHeight: TextUnit,
-        paragraphHeight: Dp,
         density: Float
     ): Int {
-        val separatorText = "---"
-        val staticLayout = StaticLayout.Builder
-            .obtain(separatorText, 0, separatorText.length, textPaint, availableWidth)
-            .setAlignment(getAlignment(ReaderTextAlignment.CENTER))
-            .setLineSpacing(0f, getLineSpacingMultiplier(lineHeight, fontSize))
-            .setIncludePad(false)
-            .build()
-
-        val topPadding = (paragraphHeight.value * density * 0.8).toInt()
-        val bottomPadding = (paragraphHeight.value * density * 0.8).toInt()
-
-        return topPadding + staticLayout.height + bottomPadding
+        val dividerHeight = (3.dp.value * density).roundToInt()
+        return dividerHeight
     }
     
-    /**
-     * Рассчитывает высоту одного элемента ReaderText.
-     * Это единственный источник истины для расчета высоты элементов.
-     */
     fun calculateElementHeight(
         readerText: ReaderText,
         textPaint: TextPaint,
@@ -207,7 +184,6 @@ object TextMeasurementUtils {
         fontSize: TextUnit,
         lineHeight: TextUnit,
         paragraphIndentation: TextUnit,
-        paragraphHeight: Dp,
         density: Float
     ): Int {
         return when (readerText) {
@@ -230,7 +206,6 @@ object TextMeasurementUtils {
                     availableWidth = availableWidth,
                     fontSize = fontSize,
                     lineHeight = lineHeight,
-                    paragraphHeight = paragraphHeight,
                     density = density
                 )
             }
@@ -239,23 +214,16 @@ object TextMeasurementUtils {
                 calculateSeparatorHeight(
                     textPaint = textPaint,
                     availableWidth = availableWidth,
-                    fontSize = fontSize,
-                    lineHeight = lineHeight,
-                    paragraphHeight = paragraphHeight,
                     density = density
                 )
             }
             
             is ReaderText.Image -> {
-                200 // Фиксированная высота для изображений
+                200 
             }
         }
     }
     
-    /**
-     * Рассчитывает общую высоту страницы с учетом всех элементов и spacing между ними.
-     * Это единственный источник истины для расчета высоты страницы.
-     */
     fun calculatePageHeight(
         pageContent: List<ReaderText>,
         textPaint: TextPaint,
@@ -264,19 +232,16 @@ object TextMeasurementUtils {
         lineHeight: TextUnit,
         paragraphIndentation: TextUnit,
         paragraphHeight: Dp,
-        density: Float,
-        textAlignment: ReaderTextAlignment
+        density: Float
     ): Int {
         var totalHeight = 0
-        val paragraphSpacingPx = (paragraphHeight.value * density).toInt()
+        val paragraphSpacingPx = (paragraphHeight.value * density).roundToInt()
         
         for ((index, readerText) in pageContent.withIndex()) {
-            // Добавляем spacing между элементами (кроме первого)
             if (index > 0) {
                 totalHeight += paragraphSpacingPx
             }
             
-            // Используем единую функцию для расчета высоты элемента
             totalHeight += calculateElementHeight(
                 readerText = readerText,
                 textPaint = textPaint,
@@ -284,7 +249,6 @@ object TextMeasurementUtils {
                 fontSize = fontSize,
                 lineHeight = lineHeight,
                 paragraphIndentation = paragraphIndentation,
-                paragraphHeight = paragraphHeight,
                 density = density
             )
         }

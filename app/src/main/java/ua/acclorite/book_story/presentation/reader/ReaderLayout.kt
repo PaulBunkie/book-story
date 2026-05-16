@@ -58,6 +58,7 @@ import ua.acclorite.book_story.presentation.core.util.LocalActivity
 import ua.acclorite.book_story.presentation.core.util.noRippleClickable
 import ua.acclorite.book_story.presentation.core.util.showToast
 import ua.acclorite.book_story.ui.reader.ReaderEvent
+import kotlin.math.roundToInt
 
 @Composable
 fun ReaderLayout(
@@ -179,8 +180,8 @@ fun ReaderLayout(
                     // Pages режим с ленивой загрузкой
                     val configuration = LocalConfiguration.current
                     val density = LocalDensity.current
-                    val screenWidth = (configuration.screenWidthDp * density.density).toInt()
-                    val screenHeight = (configuration.screenHeightDp * density.density).toInt()
+                    val screenWidth = (configuration.screenWidthDp * density.density).roundToInt()
+                    val screenHeight = (configuration.screenHeightDp * density.density).roundToInt()
                     
                     // Собираем ключи для кэша
                     val settingsKeys = arrayOf(
@@ -426,8 +427,8 @@ fun ReaderLayout(
                     // Experimental режим с красными точками для обрезанных строк
                     val configuration = LocalConfiguration.current
                     val density = LocalDensity.current
-                    val screenWidth = (configuration.screenWidthDp * density.density).toInt()
-                    val screenHeight = (configuration.screenHeightDp * density.density).toInt()
+                    val screenWidth = (configuration.screenWidthDp * density.density).roundToInt()
+                    val screenHeight = (configuration.screenHeightDp * density.density).roundToInt()
                     
                     Box(modifier = Modifier.fillMaxSize()) {
                         // Вычисляем значения contentPadding для передачи в TextLineVisibilityDetector

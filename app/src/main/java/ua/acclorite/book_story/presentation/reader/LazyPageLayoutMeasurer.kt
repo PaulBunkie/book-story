@@ -25,7 +25,9 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextIndent
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -33,12 +35,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.unit.Density
 import ua.acclorite.book_story.domain.reader.FontWithName
 import ua.acclorite.book_story.domain.reader.ReaderFontThickness
 import ua.acclorite.book_story.domain.reader.ReaderText
 import ua.acclorite.book_story.domain.reader.ReaderTextAlignment
 import ua.acclorite.book_story.presentation.core.components.common.StyledText
+import kotlin.math.roundToInt
 
 @Composable
 fun LazyPageLayoutMeasurer(
@@ -74,32 +79,34 @@ fun LazyPageLayoutMeasurer(
     onPagesCalculated: (List<Page>) -> Unit,
     onTotalPagesEstimate: (Int) -> Unit
 ) {
-    val density = LocalDensity.current.density
-    val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+    val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
+    val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
     
-    val contentPaddingVerticalPx = with(LocalDensity.current) {
-        (contentPadding.calculateTopPadding() + contentPadding.calculateBottomPadding()).toPx().toInt()
+    val contentPaddingVerticalPx = with(density) {
+        (contentPadding.calculateTopPadding() + contentPadding.calculateBottomPadding()).roundToPx()
     }
-    val contentPaddingHorizontalPx = with(LocalDensity.current) {
-        (contentPadding.calculateStartPadding(layoutDirection) + contentPadding.calculateEndPadding(layoutDirection)).toPx().toInt()
+    val contentPaddingHorizontalPx = with(density) {
+        (contentPadding.calculateStartPadding(layoutDirection) + contentPadding.calculateEndPadding(layoutDirection)).roundToPx()
     }
-    val verticalPaddingPx = with(LocalDensity.current) {
-        (verticalPadding * 2).toPx().toInt()
+    val verticalPaddingPx = with(density) {
+        (verticalPadding * 2).roundToPx()
     }
-    val sidePaddingPx = with(LocalDensity.current) {
-        (sidePadding * 2).toPx().toInt()
+    val sidePaddingPx = with(density) {
+        (sidePadding * 2).roundToPx()
     }
     
     val progressBarHeightPx = if (progressBar) {
-        with(LocalDensity.current) {
-            (progressBarFontSize.toDp() + progressBarPadding * 2).toPx().toInt()
+        with(density) {
+            (progressBarFontSize.toDp() + progressBarPadding * 2).roundToPx()
         }
     } else 0
 
-    // Используем небольшой запас в 2 пикселя по ширине и 5 по высоте для компенсации ошибок округления
-    val availableWidth = (screenWidth - sidePaddingPx - contentPaddingHorizontalPx - 2).coerceAtLeast(0)
-    val availableHeight = (screenHeight - contentPaddingVerticalPx - verticalPaddingPx - progressBarHeightPx - 5).coerceAtLeast(0)
+    val availableWidth = (screenWidth - sidePaddingPx - contentPaddingHorizontalPx).coerceAtLeast(0)
+    // Оставляем 4 пикселя запаса
+    val availableHeight = (screenHeight - contentPaddingVerticalPx - verticalPaddingPx - progressBarHeightPx - 4).coerceAtLeast(0)
+
+    val paragraphSpacingPx = with(density) { paragraphHeight.roundToPx() }
 
     var hasCalculated by remember(bookId, text, fontSize, lineHeight, sidePadding, paragraphHeight, availableHeight, startElement, startCarryOverText) { 
         mutableStateOf(false) 
@@ -126,7 +133,7 @@ fun LazyPageLayoutMeasurer(
                 availableHeight = availableHeight,
                 density = density,
                 elementHeights = mutableMapOf(),
-                paragraphHeight = paragraphHeight,
+                paragraphHeightPx = paragraphSpacingPx,
                 fontSize = fontSize,
                 lineHeight = lineHeight,
                 fontFamily = fontFamily,
@@ -170,9 +177,9 @@ private fun calculatePagesCore(
     pagesToCalculate: Int,
     availableWidth: Int,
     availableHeight: Int,
-    density: Float,
+    density: Density,
     elementHeights: MutableMap<Int, Int>,
-    paragraphHeight: Dp,
+    paragraphHeightPx: Int,
     fontSize: TextUnit,
     lineHeight: TextUnit,
     fontFamily: FontWithName,
@@ -222,8 +229,6 @@ private fun calculatePagesCore(
                 fontColor = fontColor,
                 highlightedReading = highlightedReading,
                 highlightedReadingThickness = highlightedReadingThickness,
-                paragraphHeight = paragraphHeight,
-                isFirstElement = currentPage.isEmpty(),
                 slotId = "element_${index}_rem_${pagesCalculated}",
                 density = density,
                 imagesCornersRoundness = imagesCornersRoundness,
@@ -231,7 +236,8 @@ private fun calculatePagesCore(
                 imagesWidth = imagesWidth,
                 imagesColorEffects = imagesColorEffects,
                 chapterStyleMedium = chapterStyleMedium,
-                chapterStyleSmall = chapterStyleSmall
+                chapterStyleSmall = chapterStyleSmall,
+                textMeasurer = textMeasurer
             )
         } else {
             elementHeights.getOrPut(index) {
@@ -250,8 +256,6 @@ private fun calculatePagesCore(
                     fontColor = fontColor,
                     highlightedReading = highlightedReading,
                     highlightedReadingThickness = highlightedReadingThickness,
-                    paragraphHeight = paragraphHeight,
-                    isFirstElement = currentPage.isEmpty(),
                     slotId = "element_$index",
                     density = density,
                     imagesCornersRoundness = imagesCornersRoundness,
@@ -259,13 +263,14 @@ private fun calculatePagesCore(
                     imagesWidth = imagesWidth,
                     imagesColorEffects = imagesColorEffects,
                     chapterStyleMedium = chapterStyleMedium,
-                    chapterStyleSmall = chapterStyleSmall
+                    chapterStyleSmall = chapterStyleSmall,
+                    textMeasurer = textMeasurer
                 )
             }
         }
 
-        val spacingHeight = if (currentPage.isEmpty()) 0 else (paragraphHeight.value * density).toInt()
-        val totalElementHeight = elementHeight + spacingHeight
+        val currentSpacing = if (currentPage.isEmpty()) 0 else paragraphHeightPx
+        val totalElementHeight = elementHeight + currentSpacing
 
         if (currentPageHeight + totalElementHeight <= availableHeight) {
             currentPage.add(readerText)
@@ -273,11 +278,11 @@ private fun calculatePagesCore(
             remainingTextPart = null
             index++
         } else {
-            // Если это текст и он не влезает целиком, пробуем разбить
+            // Разбиение текста
             if (readerText is ReaderText.Text) {
-                val effectiveAvailableHeight = availableHeight - currentPageHeight - spacingHeight
+                val effectiveAvailableHeight = availableHeight - currentPageHeight - currentSpacing
                 
-                if (effectiveAvailableHeight > (fontSize.value * density)) {
+                if (effectiveAvailableHeight > with(density) { fontSize.toPx() }) {
                      val textStyle = TextStyle(
                         fontFamily = fontFamily.font,
                         fontWeight = fontThickness.thickness,
@@ -287,10 +292,15 @@ private fun calculatePagesCore(
                         letterSpacing = letterSpacing,
                         fontSize = fontSize,
                         lineHeight = lineHeight,
-                        lineBreak = LineBreak.Paragraph
+                        lineBreak = LineBreak.Paragraph,
+                        textDirection = TextDirection.Content,
+                        platformStyle = PlatformTextStyle(includeFontPadding = false),
+                        lineHeightStyle = LineHeightStyle(
+                            alignment = LineHeightStyle.Alignment.Center,
+                            trim = LineHeightStyle.Trim.None
+                        )
                     )
                     
-                    // КРИТИЧНО: Применяем подсветку перед измерением, так как она меняет ширину слов!
                     val measuredText = if (highlightedReading) {
                         TextMeasurementUtils.applyHighlighting(readerText.line, highlightedReadingThickness)
                     } else {
@@ -312,9 +322,7 @@ private fun calculatePagesCore(
                     
                     if (lastFittingLine >= 0) {
                         var splitOffset = layoutResult.getLineEnd(lastFittingLine)
-                        
-                        // Проверка границ слов: не разрываем слова при переносе между страницами
-                        val textString = readerText.line.text
+                        val textString = measuredText.text
                         if (splitOffset < textString.length && !textString[splitOffset].isWhitespace()) {
                             val lastSpace = textString.lastIndexOf(' ', splitOffset)
                             val lineStart = layoutResult.getLineStart(lastFittingLine)
@@ -367,7 +375,7 @@ private fun calculatePagesCore(
         pages.add(Page(
             content = currentPage.toList(),
             startIndex = pageStartIndex,
-            endIndex = text.lastIndex.coerceAtMost(index),
+            endIndex = if (index > text.lastIndex) text.lastIndex else index - 1,
             carryOverText = remainingTextPart
         ))
     }
@@ -390,41 +398,50 @@ private fun measureElement(
     fontColor: Color,
     highlightedReading: Boolean,
     highlightedReadingThickness: FontWeight,
-    paragraphHeight: Dp,
-    isFirstElement: Boolean,
     slotId: String,
-    density: Float,
+    density: Density,
     imagesCornersRoundness: Dp,
     imagesAlignment: ua.acclorite.book_story.domain.util.HorizontalAlignment,
     imagesWidth: Float,
     imagesColorEffects: ColorFilter?,
     chapterStyleMedium: TextStyle,
-    chapterStyleSmall: TextStyle
+    chapterStyleSmall: TextStyle,
+    textMeasurer: TextMeasurer
 ): Int {
     return when (readerText) {
         is ReaderText.Text -> {
             val isContinuation = readerText.line.text.startsWith("\u200B")
-            val placeable = measurer.subcompose(slotId) {
-                StyledText(
-                    text = readerText.line,
-                    style = TextStyle(
-                        fontFamily = fontFamily.font,
-                        fontWeight = fontThickness.thickness,
-                        textAlign = textAlignment.textAlignment,
-                        textIndent = if (isContinuation) TextIndent.None else TextIndent(firstLine = paragraphIndentation),
-                        fontStyle = fontStyle,
-                        letterSpacing = letterSpacing,
-                        fontSize = fontSize,
-                        lineHeight = lineHeight,
-                        color = fontColor,
-                        lineBreak = LineBreak.Paragraph
-                    ),
-                    highlightText = highlightedReading,
-                    highlightThickness = highlightedReadingThickness,
-                    modifier = Modifier.fillMaxWidth()
+            val textStyle = TextStyle(
+                fontFamily = fontFamily.font,
+                fontWeight = fontThickness.thickness,
+                textAlign = textAlignment.textAlignment,
+                textIndent = if (isContinuation) TextIndent.None else TextIndent(firstLine = paragraphIndentation),
+                fontStyle = fontStyle,
+                letterSpacing = letterSpacing,
+                fontSize = fontSize,
+                lineHeight = lineHeight,
+                color = fontColor,
+                lineBreak = LineBreak.Paragraph,
+                textDirection = TextDirection.Content,
+                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                lineHeightStyle = LineHeightStyle(
+                    alignment = LineHeightStyle.Alignment.Center,
+                    trim = LineHeightStyle.Trim.None
                 )
-            }.first().measure(constraints)
-            placeable.height
+            )
+            
+            val measuredText = if (highlightedReading) {
+                TextMeasurementUtils.applyHighlighting(readerText.line, highlightedReadingThickness)
+            } else {
+                readerText.line
+            }
+            
+            val layoutResult = textMeasurer.measure(
+                text = measuredText,
+                style = textStyle,
+                constraints = constraints
+            )
+            layoutResult.size.height
         }
 
         is ReaderText.Chapter -> {
@@ -433,11 +450,16 @@ private fun measureElement(
                     Spacer(modifier = Modifier.height(22.dp))
                     StyledText(
                         text = buildAnnotatedString { append(readerText.title) },
-                        style = (if (!readerText.nested) chapterStyleMedium
-                               else chapterStyleSmall)
+                        style = (if (!readerText.nested) chapterStyleMedium else chapterStyleSmall)
                             .copy(
                                 color = fontColor,
-                                textAlign = textAlignment.textAlignment
+                                textAlign = textAlignment.textAlignment,
+                                textDirection = TextDirection.Content,
+                                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                                lineHeightStyle = LineHeightStyle(
+                                    alignment = LineHeightStyle.Alignment.Center,
+                                    trim = LineHeightStyle.Trim.None
+                                )
                             ),
                         highlightText = highlightedReading,
                         highlightThickness = highlightedReadingThickness,
@@ -516,31 +538,33 @@ fun calculatePageRangeComposable(
     progressBarFontSize: TextUnit,
     onPagesCalculated: (List<Page>) -> Unit
 ) {
-    val density = LocalDensity.current.density
-    val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+    val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
+    val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
     
-    val contentPaddingVerticalPx = with(LocalDensity.current) {
-        (contentPadding.calculateTopPadding() + contentPadding.calculateBottomPadding()).toPx().toInt()
+    val contentPaddingVerticalPx = with(density) {
+        (contentPadding.calculateTopPadding() + contentPadding.calculateBottomPadding()).roundToPx()
     }
-    val contentPaddingHorizontalPx = with(LocalDensity.current) {
-        (contentPadding.calculateStartPadding(layoutDirection) + contentPadding.calculateEndPadding(layoutDirection)).toPx().toInt()
+    val contentPaddingHorizontalPx = with(density) {
+        (contentPadding.calculateStartPadding(layoutDirection) + contentPadding.calculateEndPadding(layoutDirection)).roundToPx()
     }
-    val verticalPaddingPx = with(LocalDensity.current) {
-        (verticalPadding * 2).toPx().toInt()
+    val verticalPaddingPx = with(density) {
+        (verticalPadding * 2).roundToPx()
     }
-    val sidePaddingPx = with(LocalDensity.current) {
-        (sidePadding * 2).toPx().toInt()
+    val sidePaddingPx = with(density) {
+        (sidePadding * 2).roundToPx()
     }
     
     val progressBarHeightPx = if (progressBar) {
-        with(LocalDensity.current) {
-            (progressBarFontSize.toDp() + progressBarPadding * 2).toPx().toInt()
+        with(density) {
+            (progressBarFontSize.toDp() + progressBarPadding * 2).roundToPx()
         }
     } else 0
 
     val availableWidth = (screenWidth - sidePaddingPx - contentPaddingHorizontalPx - 2).coerceAtLeast(0)
-    val availableHeight = (screenHeight - contentPaddingVerticalPx - verticalPaddingPx - progressBarHeightPx - 5).coerceAtLeast(0)
+    val availableHeight = (screenHeight - contentPaddingVerticalPx - verticalPaddingPx - progressBarHeightPx - 1).coerceAtLeast(0)
+
+    val paragraphSpacingPx = with(density) { paragraphHeight.roundToPx() }
 
     val chapterStyleMedium = MaterialTheme.typography.headlineMedium
     val chapterStyleSmall = MaterialTheme.typography.headlineSmall
@@ -564,7 +588,7 @@ fun calculatePageRangeComposable(
             availableHeight = availableHeight,
             density = density,
             elementHeights = elementHeights,
-            paragraphHeight = paragraphHeight,
+            paragraphHeightPx = paragraphSpacingPx,
             fontSize = fontSize,
             lineHeight = lineHeight,
             fontFamily = fontFamily,

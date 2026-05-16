@@ -109,8 +109,7 @@ class PageCalculator {
             lineHeight = lineHeight,
             paragraphIndentation = paragraphIndentation,
             paragraphHeight = paragraphHeight,
-            density = density,
-            textAlignment = textAlignment
+            density = density
         )
         
         Log.d("PAGE_CALCULATOR", "Pages created: ${pages.size}")
@@ -134,8 +133,7 @@ class PageCalculator {
         lineHeight: TextUnit,
         paragraphIndentation: TextUnit,
         paragraphHeight: Dp,
-        density: Float,
-        textAlignment: ReaderTextAlignment
+        density: Float
     ): List<Page> {
         val pages = mutableListOf<Page>()
         val currentPageContent = mutableListOf<ReaderText>()
@@ -155,8 +153,7 @@ class PageCalculator {
                         lineHeight = lineHeight,
                         paragraphIndentation = paragraphIndentation,
                         paragraphHeight = paragraphHeight,
-                        density = density,
-                        textAlignment = textAlignment
+                        density = density
                     )
                     
                     Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : Test height ${testPageHeight}px, available ${availableHeight}px")
@@ -176,8 +173,7 @@ class PageCalculator {
                             lineHeight = lineHeight,
                             paragraphIndentation = paragraphIndentation,
                             paragraphHeight = paragraphHeight,
-                            density = density,
-                            textAlignment = textAlignment
+                            density = density
                         )
                         val remainingSpace = availableHeight - currentPageHeight
                         
@@ -214,8 +210,7 @@ class PageCalculator {
                                 lineHeight = lineHeight,
                                 paragraphIndentation = paragraphIndentation,
                                 paragraphHeight = paragraphHeight,
-                                density = density,
-                                textAlignment = textAlignment
+                                density = density
                             )
                             Log.d("PAGE_CALCULATOR_HEIGHT", "Page $pageIndex : CALCULATOR HEIGHT = ${finalPageHeight}px")
                             
@@ -247,8 +242,7 @@ class PageCalculator {
                                     lineHeight = lineHeight,
                                     paragraphIndentation = paragraphIndentation,
                                     paragraphHeight = paragraphHeight,
-                                    density = density,
-                                    textAlignment = textAlignment
+                                    density = density
                                 )
                                 Log.d("PAGE_CALCULATOR_HEIGHT", "Page $pageIndex : CALCULATOR HEIGHT = ${finalPageHeight}px")
                                 
@@ -283,8 +277,7 @@ class PageCalculator {
                             lineHeight = lineHeight,
                             paragraphIndentation = paragraphIndentation,
                             paragraphHeight = paragraphHeight,
-                            density = density,
-                            textAlignment = textAlignment
+                            density = density
                         )
                         Log.d("PAGE_CALCULATOR_HEIGHT", "Page $pageIndex : CALCULATOR HEIGHT = ${finalPageHeight}px")
                         
@@ -317,8 +310,7 @@ class PageCalculator {
                             lineHeight = lineHeight,
                             paragraphIndentation = paragraphIndentation,
                             paragraphHeight = paragraphHeight,
-                            density = density,
-                            textAlignment = textAlignment
+                            density = density
                         )
                         Log.d("PAGE_CALCULATOR_HEIGHT", "Page $pageIndex : CALCULATOR HEIGHT = ${finalPageHeight}px")
                         
@@ -348,8 +340,7 @@ class PageCalculator {
                         lineHeight = lineHeight,
                         paragraphIndentation = paragraphIndentation,
                         paragraphHeight = paragraphHeight,
-                        density = density,
-                        textAlignment = textAlignment
+                        density = density
                     )
                     
                     Log.d("PAGE_CALCULATOR_DEBUG", "Page $pageIndex : Element $originalIndex : Test height ${testPageHeight}px, available ${availableHeight}px")
@@ -372,8 +363,7 @@ class PageCalculator {
                                 lineHeight = lineHeight,
                                 paragraphIndentation = paragraphIndentation,
                                 paragraphHeight = paragraphHeight,
-                                density = density,
-                                textAlignment = textAlignment
+                                density = density
                             )
                             Log.d("PAGE_CALCULATOR_HEIGHT", "Page $pageIndex : CALCULATOR HEIGHT = ${finalPageHeight}px")
                             
@@ -405,8 +395,7 @@ class PageCalculator {
                 lineHeight = lineHeight,
                 paragraphIndentation = paragraphIndentation,
                 paragraphHeight = paragraphHeight,
-                density = density,
-                textAlignment = ReaderTextAlignment.START
+                density = density
             )
             Log.d("PAGE_CALCULATOR_HEIGHT", "Page $pageIndex : CALCULATOR HEIGHT = ${finalPageHeight}px")
             
@@ -421,11 +410,6 @@ class PageCalculator {
         
         return pages
     }
-    
-    
-    
-    
-    
     
     private fun breakParagraphForCurrentPage(
         paragraph: ReaderText.Text,
@@ -455,7 +439,7 @@ class PageCalculator {
         Log.d("PAGE_CALCULATOR_DEBUG", "BREAKING: totalLines=$totalLines, singleLineHeight=$singleLineHeight, remainingSpace=$remainingSpace, paragraphSpacingPx=$paragraphSpacingPx, maxLinesForCurrentPage=$maxLinesForCurrentPage")
         
         // Если ничего не помещается, возвращаем null для первой части
-        if (maxLinesForCurrentPage == 0) {
+        if (maxLinesForCurrentPage <= 0) {
             return BrokenParagraphParts(
                 firstPart = null,
                 remainingPart = BrokenParagraphPart(
