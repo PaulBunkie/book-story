@@ -182,8 +182,8 @@ fun ReaderLayout(
                     val screenWidth = (configuration.screenWidthDp * density.density).toInt()
                     val screenHeight = (configuration.screenHeightDp * density.density).toInt()
                     
-                    // Кэш страниц
-                    val pageCache: androidx.compose.runtime.snapshots.SnapshotStateMap<Int, Page> = remember(
+                    // Собираем ключи для кэша
+                    val settingsKeys = arrayOf(
                         filePath,
                         fontSize,
                         lineHeight,
@@ -197,16 +197,19 @@ fun ReaderLayout(
                         paragraphIndentation,
                         contentPadding,
                         verticalPadding
-                    ) { 
+                    )
+
+                    // Кэш страниц и состояние расчета
+                    val pageCache = remember(*settingsKeys) { 
                         mutableStateMapOf<Int, Page>() 
                     }
                     
-                    var currentPage by remember { mutableStateOf(0) }
-                    var lastCalculatedElement by remember { mutableStateOf(0) }
-                    var lastCarryOverText by remember { mutableStateOf<ReaderText.Text?>(null) }
+                    var currentPage by remember(*settingsKeys) { mutableStateOf(0) }
+                    var lastCalculatedElement by remember(*settingsKeys) { mutableStateOf(listState.firstVisibleItemIndex) }
+                    var lastCarryOverText by remember(*settingsKeys) { mutableStateOf<ReaderText.Text?>(null) }
                     var estimatedTotalPages by remember { mutableStateOf(0) }
                     
-                    // Инициализация - загружаем первые 5 страниц
+                    // Инициализация - загружаем первые 5 страниц от текущего места
                     if (text.isNotEmpty() && pageCache.isEmpty()) {
                         LazyPageLayoutMeasurer(
                             bookId = 0,
@@ -236,14 +239,16 @@ fun ReaderLayout(
                             progressBar = progressBar,
                             progressBarPadding = progressBarPadding,
                             progressBarFontSize = progressBarFontSize,
-                            startElement = 0,
-                            startCarryOverText = null,
+                            startElement = lastCalculatedElement,
+                            startCarryOverText = null, // На старте новой порции после смены настроек
                             onPagesCalculated = { calculatedPages ->
-                                calculatedPages.forEachIndexed { index, page ->
-                                    pageCache[index] = page
-                                    if (index == calculatedPages.size - 1) {
-                                        lastCalculatedElement = page.endIndex
-                                        lastCarryOverText = page.carryOverText
+                                if (pageCache.isEmpty()) {
+                                    calculatedPages.forEachIndexed { index, page ->
+                                        pageCache[index] = page
+                                        if (index == calculatedPages.size - 1) {
+                                            lastCalculatedElement = page.endIndex
+                                            lastCarryOverText = page.carryOverText
+                                        }
                                     }
                                 }
                             },
@@ -257,7 +262,7 @@ fun ReaderLayout(
                     val pages = (0 until pageCache.size).mapNotNull { pageCache[it] }
                     
                     // Флаг для запроса догрузки страниц
-                    var requestLoadMore by remember { mutableStateOf(0) }
+                    var requestLoadMore by remember(*settingsKeys) { mutableStateOf(false) }
                     
                     // Автоматическая догрузка страниц ПОСЛЕ перелистывания
                     LaunchedEffect(currentPage, pages.size, estimatedTotalPages) {
@@ -271,12 +276,12 @@ fun ReaderLayout(
                         
                         // Проверяем нужна ли догрузка
                         if (currentPage >= pages.size - 2 && lastCalculatedElement < text.lastIndex) {
-                            requestLoadMore++
+                            requestLoadMore = true
                         }
                     }
                     
                     // Догрузка страниц
-                    if (requestLoadMore > 0 && lastCalculatedElement < text.lastIndex) {
+                    if (requestLoadMore && lastCalculatedElement < text.lastIndex) {
                         calculatePageRangeComposable(
                             text = text,
                             startElement = if (lastCarryOverText != null) lastCalculatedElement else lastCalculatedElement + 1,
@@ -307,15 +312,19 @@ fun ReaderLayout(
                             progressBarPadding = progressBarPadding,
                             progressBarFontSize = progressBarFontSize,
                             onPagesCalculated = { newPages ->
-                                val startIndex = pageCache.size
-                                newPages.forEachIndexed { index, page ->
-                                    pageCache[startIndex + index] = page
-                                    if (index == newPages.size - 1) {
-                                        lastCalculatedElement = page.endIndex
-                                        lastCarryOverText = page.carryOverText
+                                if (requestLoadMore) {
+                                    val currentSize = pageCache.size
+                                    newPages.forEachIndexed { index, page ->
+                                        if (!pageCache.containsKey(currentSize + index)) {
+                                            pageCache[currentSize + index] = page
+                                            if (index == newPages.size - 1) {
+                                                lastCalculatedElement = page.endIndex
+                                                lastCarryOverText = page.carryOverText
+                                            }
+                                        }
                                     }
+                                    requestLoadMore = false
                                 }
-                                requestLoadMore = 0
                             }
                         )
                     }

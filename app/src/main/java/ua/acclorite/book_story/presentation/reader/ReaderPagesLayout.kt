@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.key
 import ua.acclorite.book_story.domain.reader.FontWithName
 import ua.acclorite.book_story.domain.reader.ReaderFontThickness
 import ua.acclorite.book_story.domain.reader.ReaderTextAlignment
@@ -69,10 +70,13 @@ fun ReaderPagesLayout(
     imagesWidth: Float,
     imagesColorEffects: ColorFilter?
 ) {
-    val pagerState = rememberPagerState(
-        initialPage = 0,
-        pageCount = { pages.size }
-    )
+    // Сбрасываем состояние пейджера при изменении настроек (так как кэш пересчитывается с нуля)
+    val pagerState = key(screenWidth, screenHeight, fontFamily, fontSize, lineHeight, sidePadding) {
+        rememberPagerState(
+            initialPage = 0,
+            pageCount = { pages.size }
+        )
+    }
     
     LaunchedEffect(pagerState.currentPage) {
         onPageChanged(pagerState.currentPage)
