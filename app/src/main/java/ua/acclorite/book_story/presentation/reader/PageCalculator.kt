@@ -36,7 +36,8 @@ import ua.acclorite.book_story.presentation.reader.TextMeasurementUtils
 data class Page(
     val content: List<ReaderText>,
     val startIndex: Int,
-    val endIndex: Int
+    val endIndex: Int,
+    val carryOverText: ReaderText.Text? = null
 )
 
 class PageCalculator {

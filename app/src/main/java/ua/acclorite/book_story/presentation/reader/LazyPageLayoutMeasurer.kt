@@ -6,22 +6,16 @@
 
 package ua.acclorite.book_story.presentation.reader
 
-import android.util.Log
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.SubcomposeLayout
@@ -34,21 +28,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
 import ua.acclorite.book_story.domain.reader.FontWithName
 import ua.acclorite.book_story.domain.reader.ReaderFontThickness
 import ua.acclorite.book_story.domain.reader.ReaderText
 import ua.acclorite.book_story.domain.reader.ReaderTextAlignment
 import ua.acclorite.book_story.presentation.core.components.common.StyledText
 
-/**
- * ЛЕНИВОЕ измерение страниц - сначала рассчитываем первые страницы, остальные по требованию
- */
 @Composable
 fun LazyPageLayoutMeasurer(
     bookId: Int,
@@ -74,20 +65,19 @@ fun LazyPageLayoutMeasurer(
     imagesAlignment: ua.acclorite.book_story.domain.util.HorizontalAlignment,
     imagesWidth: Float,
     imagesColorEffects: ColorFilter?,
-    initialPagesCount: Int = 5, // Сколько страниц считаем сразу
+    initialPagesCount: Int = 5,
+    progressBar: Boolean,
+    progressBarPadding: Dp,
+    progressBarFontSize: TextUnit,
+    startElement: Int = 0,
+    startCarryOverText: ReaderText.Text? = null,
     onPagesCalculated: (List<Page>) -> Unit,
-    onTotalPagesEstimate: (Int) -> Unit // Примерное количество страниц
+    onTotalPagesEstimate: (Int) -> Unit
 ) {
     val density = LocalDensity.current.density
-    val scope = rememberCoroutineScope()
-
-    Log.d("LAZY_PAGE_MEASURER", "=== Starting LAZY PAGE MEASUREMENT ===")
-    Log.d("LAZY_PAGE_MEASURER", "Text items: ${text.size}")
-    Log.d("LAZY_PAGE_MEASURER", "Screen: ${screenWidth}x${screenHeight}")
-    Log.d("LAZY_PAGE_MEASURER", "Initial pages to calculate: $initialPagesCount")
-
-    // Рассчитываем доступное пространство
     val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+    val textMeasurer = rememberTextMeasurer()
+    
     val contentPaddingVerticalPx = with(LocalDensity.current) {
         (contentPadding.calculateTopPadding() + contentPadding.calculateBottomPadding()).toPx().toInt()
     }
@@ -100,19 +90,24 @@ fun LazyPageLayoutMeasurer(
     val sidePaddingPx = with(LocalDensity.current) {
         (sidePadding * 2).toPx().toInt()
     }
+    
+    val progressBarHeightPx = if (progressBar) {
+        with(LocalDensity.current) {
+            (progressBarFontSize.toDp() + progressBarPadding * 2).toPx().toInt()
+        }
+    } else 0
 
     val availableWidth = screenWidth - sidePaddingPx - contentPaddingHorizontalPx
-    val availableHeight = screenHeight - contentPaddingVerticalPx - verticalPaddingPx
+    val availableHeight = screenHeight - contentPaddingVerticalPx - verticalPaddingPx - progressBarHeightPx - 16
 
-    Log.d("LAZY_PAGE_MEASURER", "Margins: contentH=$contentPaddingHorizontalPx, contentV=$contentPaddingVerticalPx, sideP=$sidePaddingPx, vertP=$verticalPaddingPx")
-    Log.d("LAZY_PAGE_MEASURER", "Available: ${availableWidth}x${availableHeight}")
-
-    // SubcomposeLayout для измерения элементов ОДИН РАЗ
-    var hasCalculated by remember(bookId, text, fontSize, lineHeight, sidePadding, paragraphHeight) { 
+    var hasCalculated by remember(bookId, text, fontSize, lineHeight, sidePadding, paragraphHeight, availableHeight, startElement, startCarryOverText) { 
         mutableStateOf(false) 
     }
     
     if (!hasCalculated) {
+        val chapterStyleMedium = MaterialTheme.typography.headlineMedium
+        val chapterStyleSmall = MaterialTheme.typography.headlineSmall
+        
         SubcomposeLayout { constraints ->
             val measureConstraints = Constraints(
                 minWidth = availableWidth,
@@ -121,9 +116,11 @@ fun LazyPageLayoutMeasurer(
                 maxHeight = Constraints.Infinity
             )
             
-            val pages = calculateInitialPages(
+            val pages = calculatePagesCore(
                 text = text,
-                initialPagesCount = initialPagesCount,
+                startElement = startElement,
+                startCarryOverText = startCarryOverText,
+                pagesToCalculate = initialPagesCount,
                 availableWidth = availableWidth,
                 availableHeight = availableHeight,
                 density = density,
@@ -145,32 +142,31 @@ fun LazyPageLayoutMeasurer(
                 imagesWidth = imagesWidth,
                 imagesColorEffects = imagesColorEffects,
                 measurer = this,
-                measureConstraints = measureConstraints
+                measureConstraints = measureConstraints,
+                chapterStyleMedium = chapterStyleMedium,
+                chapterStyleSmall = chapterStyleSmall,
+                textMeasurer = textMeasurer
             )
             
             hasCalculated = true
             onPagesCalculated(pages)
             
-            // Оценка общего количества страниц
             if (pages.isNotEmpty() && text.isNotEmpty()) {
                 val avgElementsPerPage = pages.sumOf { it.content.size } / pages.size.toFloat()
                 val estimatedTotalPages = (text.size / avgElementsPerPage).toInt()
-                Log.d("LAZY_PAGE_MEASURER", "Estimated total pages: $estimatedTotalPages (avg $avgElementsPerPage elements/page)")
                 onTotalPagesEstimate(estimatedTotalPages)
             }
 
-            // Layout не рисует ничего - только измеряет
             layout(0, 0) {}
         }
     }
 }
 
-/**
- * Рассчитывает первые N страниц
- */
-private fun calculateInitialPages(
+private fun calculatePagesCore(
     text: List<ReaderText>,
-    initialPagesCount: Int,
+    startElement: Int,
+    startCarryOverText: ReaderText.Text?,
+    pagesToCalculate: Int,
     availableWidth: Int,
     availableHeight: Int,
     density: Float,
@@ -192,24 +188,24 @@ private fun calculateInitialPages(
     imagesWidth: Float,
     imagesColorEffects: ColorFilter?,
     measurer: androidx.compose.ui.layout.SubcomposeMeasureScope,
-    measureConstraints: Constraints
+    measureConstraints: Constraints,
+    chapterStyleMedium: TextStyle,
+    chapterStyleSmall: TextStyle,
+    textMeasurer: TextMeasurer
 ): List<Page> {
     val pages = mutableListOf<Page>()
     var currentPage = mutableListOf<ReaderText>()
     var currentPageHeight = 0
-    var pageStartIndex = 0
+    var pageStartIndex = startElement
     var pagesCalculated = 0
 
-    for (index in text.indices) {
-        // Останавливаемся после расчёта нужного количества страниц
-        if (pagesCalculated >= initialPagesCount) {
-            break
-        }
+    var index = startElement
+    var remainingTextPart: ReaderText.Text? = startCarryOverText
 
-        val readerText = text[index]
+    while (index < text.size && pagesCalculated < pagesToCalculate) {
+        val readerText = remainingTextPart ?: text[index]
         
-        // Измеряем элемент (с кешем)
-        val elementHeight = elementHeights.getOrPut(index) {
+        val elementHeight = if (remainingTextPart != null) {
             measureElement(
                 measurer = measurer,
                 readerText = readerText,
@@ -227,64 +223,139 @@ private fun calculateInitialPages(
                 highlightedReadingThickness = highlightedReadingThickness,
                 paragraphHeight = paragraphHeight,
                 isFirstElement = currentPage.isEmpty(),
-                slotId = "element_$index",
+                slotId = "element_${index}_rem_${pagesCalculated}",
                 density = density,
                 imagesCornersRoundness = imagesCornersRoundness,
                 imagesAlignment = imagesAlignment,
                 imagesWidth = imagesWidth,
-                imagesColorEffects = imagesColorEffects
+                imagesColorEffects = imagesColorEffects,
+                chapterStyleMedium = chapterStyleMedium,
+                chapterStyleSmall = chapterStyleSmall
             )
+        } else {
+            elementHeights.getOrPut(index) {
+                measureElement(
+                    measurer = measurer,
+                    readerText = readerText,
+                    constraints = measureConstraints,
+                    fontSize = fontSize,
+                    lineHeight = lineHeight,
+                    fontFamily = fontFamily,
+                    fontThickness = fontThickness,
+                    fontStyle = fontStyle,
+                    textAlignment = textAlignment,
+                    letterSpacing = letterSpacing,
+                    paragraphIndentation = paragraphIndentation,
+                    fontColor = fontColor,
+                    highlightedReading = highlightedReading,
+                    highlightedReadingThickness = highlightedReadingThickness,
+                    paragraphHeight = paragraphHeight,
+                    isFirstElement = currentPage.isEmpty(),
+                    slotId = "element_$index",
+                    density = density,
+                    imagesCornersRoundness = imagesCornersRoundness,
+                    imagesAlignment = imagesAlignment,
+                    imagesWidth = imagesWidth,
+                    imagesColorEffects = imagesColorEffects,
+                    chapterStyleMedium = chapterStyleMedium,
+                    chapterStyleSmall = chapterStyleSmall
+                )
+            }
         }
 
-        Log.d("LAZY_PAGE_MEASURER", "Element $index: ${readerText.javaClass.simpleName}, height=$elementHeight")
-
-        // Добавляем высоту spacing (если не первый элемент на странице)
         val spacingHeight = if (currentPage.isEmpty()) 0 else (paragraphHeight.value * density).toInt()
         val totalElementHeight = elementHeight + spacingHeight
 
-        // Проверяем, влезает ли элемент на текущую страницу
         if (currentPageHeight + totalElementHeight <= availableHeight) {
-            // Влезает - добавляем на текущую страницу
             currentPage.add(readerText)
             currentPageHeight += totalElementHeight
-            Log.d("LAZY_PAGE_MEASURER", "  -> Added to page $pagesCalculated, height now: $currentPageHeight/$availableHeight")
+            remainingTextPart = null
+            index++
         } else {
-            // Не влезает - создаем новую страницу
+            if (readerText is ReaderText.Text) {
+                val effectiveAvailableHeight = availableHeight - currentPageHeight - spacingHeight
+                
+                if (effectiveAvailableHeight > (fontSize.value * density * 2)) {
+                     val textStyle = TextStyle(
+                        fontFamily = fontFamily.font,
+                        fontWeight = fontThickness.thickness,
+                        textAlign = textAlignment.textAlignment,
+                        textIndent = if (readerText.line.text.startsWith("\u200B")) TextIndent.None else TextIndent(firstLine = paragraphIndentation),
+                        fontStyle = fontStyle,
+                        letterSpacing = letterSpacing,
+                        fontSize = fontSize,
+                        lineHeight = lineHeight,
+                        lineBreak = LineBreak.Paragraph
+                    )
+                    
+                    val layoutResult = textMeasurer.measure(
+                        text = readerText.line,
+                        style = textStyle,
+                        constraints = Constraints(maxWidth = availableWidth)
+                    )
+                    
+                    var lastFittingLine = -1
+                    for (i in 0 until layoutResult.lineCount) {
+                        if (layoutResult.getLineBottom(i) <= effectiveAvailableHeight) {
+                            lastFittingLine = i
+                        } else break
+                    }
+                    
+                    if (lastFittingLine >= 0) {
+                        val splitOffset = layoutResult.getLineEnd(lastFittingLine)
+                        
+                        if (splitOffset > 0 && splitOffset < readerText.line.length) {
+                             val firstPart = ReaderText.Text(readerText.line.subSequence(0, splitOffset))
+                             currentPage.add(firstPart)
+                             
+                             val remainingAnnotated = readerText.line.subSequence(splitOffset, readerText.line.length)
+                             remainingTextPart = ReaderText.Text(
+                                 buildAnnotatedString {
+                                     append("\u200B")
+                                     append(remainingAnnotated)
+                                 }
+                             )
+                             
+                             pages.add(Page(currentPage.toList(), pageStartIndex, index, remainingTextPart))
+                             pagesCalculated++
+                             currentPage = mutableListOf()
+                             currentPageHeight = 0
+                             pageStartIndex = index
+                             continue
+                        }
+                    }
+                }
+            }
+
             if (currentPage.isNotEmpty()) {
                 pages.add(Page(
                     content = currentPage.toList(),
                     startIndex = pageStartIndex,
                     endIndex = index - 1
                 ))
-                Log.d("LAZY_PAGE_MEASURER", "Page $pagesCalculated completed: ${currentPage.size} elements, height=$currentPageHeight")
                 pagesCalculated++
             }
 
-            // Начинаем новую страницу с текущего элемента
             currentPage = mutableListOf(readerText)
-            currentPageHeight = elementHeight // Без spacing, т.к. первый элемент
+            currentPageHeight = elementHeight
             pageStartIndex = index
-            Log.d("LAZY_PAGE_MEASURER", "  -> Started new page $pagesCalculated, height: $currentPageHeight/$availableHeight")
+            remainingTextPart = null
+            index++
         }
     }
 
-    // Добавляем последнюю страницу
-    if (currentPage.isNotEmpty()) {
+    if (currentPage.isNotEmpty() && pagesCalculated < pagesToCalculate) {
         pages.add(Page(
             content = currentPage.toList(),
             startIndex = pageStartIndex,
-            endIndex = text.lastIndex.coerceAtMost(pageStartIndex + currentPage.size - 1)
+            endIndex = text.lastIndex.coerceAtMost(index),
+            carryOverText = remainingTextPart
         ))
-        Log.d("LAZY_PAGE_MEASURER", "Final page $pagesCalculated: ${currentPage.size} elements, height=$currentPageHeight")
     }
 
-    Log.d("LAZY_PAGE_MEASURER", "=== LAZY MEASUREMENT COMPLETE: ${pages.size} pages (of $initialPagesCount requested) ===")
     return pages
 }
 
-/**
- * Измеряет высоту одного ReaderText элемента
- */
 private fun measureElement(
     measurer: androidx.compose.ui.layout.SubcomposeMeasureScope,
     readerText: ReaderText,
@@ -307,10 +378,13 @@ private fun measureElement(
     imagesCornersRoundness: Dp,
     imagesAlignment: ua.acclorite.book_story.domain.util.HorizontalAlignment,
     imagesWidth: Float,
-    imagesColorEffects: ColorFilter?
+    imagesColorEffects: ColorFilter?,
+    chapterStyleMedium: TextStyle,
+    chapterStyleSmall: TextStyle
 ): Int {
     return when (readerText) {
         is ReaderText.Text -> {
+            val isContinuation = readerText.line.text.startsWith("\u200B")
             val placeable = measurer.subcompose(slotId) {
                 StyledText(
                     text = readerText.line,
@@ -318,7 +392,7 @@ private fun measureElement(
                         fontFamily = fontFamily.font,
                         fontWeight = fontThickness.thickness,
                         textAlign = textAlignment.textAlignment,
-                        textIndent = TextIndent(firstLine = paragraphIndentation),
+                        textIndent = if (isContinuation) TextIndent.None else TextIndent(firstLine = paragraphIndentation),
                         fontStyle = fontStyle,
                         letterSpacing = letterSpacing,
                         fontSize = fontSize,
@@ -338,16 +412,16 @@ private fun measureElement(
             val placeable = measurer.subcompose(slotId) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Spacer(modifier = Modifier.height(22.dp))
-                    Text(
-                        text = readerText.title,
-                        style = TextStyle(
-                            fontFamily = fontFamily.font,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = textAlignment.textAlignment,
-                            fontSize = fontSize * 1.2f,
-                            lineHeight = lineHeight * 1.2f,
-                            color = fontColor
-                        ),
+                    StyledText(
+                        text = buildAnnotatedString { append(readerText.title) },
+                        style = (if (!readerText.nested) chapterStyleMedium
+                               else chapterStyleSmall)
+                            .copy(
+                                color = fontColor,
+                                textAlign = textAlignment.textAlignment
+                            ),
+                        highlightText = highlightedReading,
+                        highlightThickness = highlightedReadingThickness,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -360,26 +434,16 @@ private fun measureElement(
 
         is ReaderText.Separator -> {
             val placeable = measurer.subcompose(slotId) {
-                Text(
-                    text = "---",
-                    style = TextStyle(
-                        fontFamily = fontFamily.font,
-                        fontWeight = fontThickness.thickness,
-                        textAlign = TextAlign.Center,
-                        fontSize = fontSize,
-                        lineHeight = lineHeight,
-                        color = fontColor
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp)
+                HorizontalDivider(
+                    thickness = 3.dp,
+                    modifier = Modifier.clip(CircleShape),
+                    color = fontColor.copy(0.3f)
                 )
             }.first().measure(constraints)
             placeable.height
         }
 
         is ReaderText.Image -> {
-            // Измеряем РЕАЛЬНУЮ высоту изображения через SubcomposeLayout
             val placeable = measurer.subcompose(slotId) {
                 Box(
                     modifier = Modifier.fillMaxWidth(),
@@ -401,14 +465,11 @@ private fun measureElement(
     }
 }
 
-/**
- * Рассчитать диапазон страниц начиная с определенного элемента
- * Используется для ленивой загрузки страниц по мере прокрутки
- */
 @Composable
 fun calculatePageRangeComposable(
     text: List<ReaderText>,
     startElement: Int,
+    startCarryOverText: ReaderText.Text? = null,
     pagesToCalculate: Int,
     screenWidth: Int,
     screenHeight: Int,
@@ -431,12 +492,15 @@ fun calculatePageRangeComposable(
     imagesAlignment: ua.acclorite.book_story.domain.util.HorizontalAlignment,
     imagesWidth: Float,
     imagesColorEffects: ColorFilter?,
+    progressBar: Boolean,
+    progressBarPadding: Dp,
+    progressBarFontSize: TextUnit,
     onPagesCalculated: (List<Page>) -> Unit
 ) {
     val density = LocalDensity.current.density
     val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+    val textMeasurer = rememberTextMeasurer()
     
-    // Рассчитываем доступное пространство
     val contentPaddingVerticalPx = with(LocalDensity.current) {
         (contentPadding.calculateTopPadding() + contentPadding.calculateBottomPadding()).toPx().toInt()
     }
@@ -450,10 +514,18 @@ fun calculatePageRangeComposable(
         (sidePadding * 2).toPx().toInt()
     }
     
+    val progressBarHeightPx = if (progressBar) {
+        with(LocalDensity.current) {
+            (progressBarFontSize.toDp() + progressBarPadding * 2).toPx().toInt()
+        }
+    } else 0
+
     val availableWidth = screenWidth - sidePaddingPx - contentPaddingHorizontalPx
-    val availableHeight = screenHeight - contentPaddingVerticalPx - verticalPaddingPx
-    
-    // SubcomposeLayout для измерения элементов
+    val availableHeight = screenHeight - contentPaddingVerticalPx - verticalPaddingPx - progressBarHeightPx - 16
+
+    val chapterStyleMedium = MaterialTheme.typography.headlineMedium
+    val chapterStyleSmall = MaterialTheme.typography.headlineSmall
+
     SubcomposeLayout { constraints ->
         val measureConstraints = Constraints(
             minWidth = availableWidth,
@@ -464,9 +536,10 @@ fun calculatePageRangeComposable(
         
         val elementHeights = mutableMapOf<Int, Int>()
         
-        val pages = calculatePagesFromElement(
+        val pages = calculatePagesCore(
             text = text,
             startElement = startElement,
+            startCarryOverText = startCarryOverText,
             pagesToCalculate = pagesToCalculate,
             availableWidth = availableWidth,
             availableHeight = availableHeight,
@@ -489,138 +562,13 @@ fun calculatePageRangeComposable(
             imagesWidth = imagesWidth,
             imagesColorEffects = imagesColorEffects,
             measurer = this,
-            measureConstraints = measureConstraints
+            measureConstraints = measureConstraints,
+            chapterStyleMedium = chapterStyleMedium,
+            chapterStyleSmall = chapterStyleSmall,
+            textMeasurer = textMeasurer
         )
         
         onPagesCalculated(pages)
-        
-        // Layout не рисует ничего - только измеряет
         layout(0, 0) {}
     }
 }
-
-/**
- * Внутренняя функция для расчета страниц начиная с определенного элемента
- */
-private fun calculatePagesFromElement(
-    text: List<ReaderText>,
-    startElement: Int,
-    pagesToCalculate: Int,
-    availableWidth: Int,
-    availableHeight: Int,
-    density: Float,
-    elementHeights: MutableMap<Int, Int>,
-    paragraphHeight: Dp,
-    fontSize: TextUnit,
-    lineHeight: TextUnit,
-    fontFamily: FontWithName,
-    fontThickness: ReaderFontThickness,
-    fontStyle: FontStyle,
-    textAlignment: ReaderTextAlignment,
-    letterSpacing: TextUnit,
-    paragraphIndentation: TextUnit,
-    fontColor: Color,
-    highlightedReading: Boolean,
-    highlightedReadingThickness: FontWeight,
-    imagesCornersRoundness: Dp,
-    imagesAlignment: ua.acclorite.book_story.domain.util.HorizontalAlignment,
-    imagesWidth: Float,
-    imagesColorEffects: ColorFilter?,
-    measurer: androidx.compose.ui.layout.SubcomposeMeasureScope,
-    measureConstraints: Constraints
-): List<Page> {
-    val pages = mutableListOf<Page>()
-    var currentPage = mutableListOf<ReaderText>()
-    var currentPageHeight = 0
-    var pageStartIndex = startElement
-    var pagesCalculated = 0
-    
-    Log.d("LAZY_PAGE_MEASURER", "=== Calculating pages from element $startElement ===")
-    
-    for (index in startElement until text.size) {
-        // Останавливаемся после расчёта нужного количества страниц
-        if (pagesCalculated >= pagesToCalculate) {
-            break
-        }
-        
-        val readerText = text[index]
-        
-        // Измеряем элемент (с кешем)
-        val elementHeight = elementHeights.getOrPut(index) {
-            measureElement(
-                measurer = measurer,
-                readerText = readerText,
-                constraints = measureConstraints,
-                fontSize = fontSize,
-                lineHeight = lineHeight,
-                fontFamily = fontFamily,
-                fontThickness = fontThickness,
-                fontStyle = fontStyle,
-                textAlignment = textAlignment,
-                letterSpacing = letterSpacing,
-                paragraphIndentation = paragraphIndentation,
-                fontColor = fontColor,
-                highlightedReading = highlightedReading,
-                highlightedReadingThickness = highlightedReadingThickness,
-                paragraphHeight = paragraphHeight,
-                isFirstElement = (index == startElement),
-                slotId = "page_element_$index",
-                density = density,
-                imagesCornersRoundness = imagesCornersRoundness,
-                imagesAlignment = imagesAlignment,
-                imagesWidth = imagesWidth,
-                imagesColorEffects = imagesColorEffects
-            )
-        }
-        
-        Log.d("LAZY_PAGE_MEASURER", "Element $index: ${readerText.javaClass.simpleName}, height=$elementHeight")
-        
-        // Проверяем влезет ли элемент на текущую страницу
-        val paragraphSpacingPx = if (currentPage.isNotEmpty()) {
-            (paragraphHeight.value * density).toInt()
-        } else 0
-        
-        if (currentPageHeight + paragraphSpacingPx + elementHeight <= availableHeight) {
-            // Влезает - добавляем на текущую страницу
-            currentPage.add(readerText)
-            currentPageHeight += paragraphSpacingPx + elementHeight
-            Log.d("LAZY_PAGE_MEASURER", "  -> Added to page $pagesCalculated, height now: $currentPageHeight/$availableHeight")
-        } else {
-            // Не влезает - завершаем текущую страницу и начинаем новую
-            if (currentPage.isNotEmpty()) {
-                Log.d("LAZY_PAGE_MEASURER", "Page $pagesCalculated completed: ${currentPage.size} elements, height=$currentPageHeight")
-                pages.add(
-                    Page(
-                        content = currentPage.toList(),
-                        startIndex = pageStartIndex,
-                        endIndex = index - 1
-                    )
-                )
-                pagesCalculated++
-            }
-            
-            // Начинаем новую страницу с текущего элемента
-            currentPage = mutableListOf(readerText)
-            currentPageHeight = elementHeight
-            pageStartIndex = index
-            Log.d("LAZY_PAGE_MEASURER", "  -> Started new page $pagesCalculated, height: $elementHeight/$availableHeight")
-        }
-    }
-    
-    // Добавляем последнюю страницу если она не пустая
-    if (currentPage.isNotEmpty() && pagesCalculated < pagesToCalculate) {
-        Log.d("LAZY_PAGE_MEASURER", "Final page $pagesCalculated: ${currentPage.size} elements, height=$currentPageHeight")
-        pages.add(
-            Page(
-                content = currentPage,
-                startIndex = pageStartIndex,
-                endIndex = text.size - 1
-            )
-        )
-    }
-    
-    Log.d("LAZY_PAGE_MEASURER", "=== Calculated ${pages.size} pages starting from element $startElement ===")
-    
-    return pages
-}
-

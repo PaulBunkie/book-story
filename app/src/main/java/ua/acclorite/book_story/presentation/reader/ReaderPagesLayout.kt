@@ -7,7 +7,6 @@
 package ua.acclorite.book_story.presentation.reader
 
 import androidx.activity.ComponentActivity
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -15,27 +14,18 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.runtime.LaunchedEffect
-import ua.acclorite.book_story.presentation.core.util.noRippleClickable
-import ua.acclorite.book_story.presentation.core.components.common.SelectionContainer
-import ua.acclorite.book_story.presentation.core.components.common.StyledText
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.font.toFontFamily
 import androidx.compose.ui.text.style.LineBreak
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -45,13 +35,9 @@ import ua.acclorite.book_story.domain.reader.ReaderFontThickness
 import ua.acclorite.book_story.domain.reader.ReaderTextAlignment
 import ua.acclorite.book_story.domain.reader.ReaderText
 import ua.acclorite.book_story.ui.reader.ReaderEvent
-import android.util.Log
-import ua.acclorite.book_story.presentation.reader.TextMeasurementUtils
-import android.graphics.Paint
-import android.text.Layout
-import android.text.StaticLayout
-import android.text.TextPaint
-import android.graphics.Typeface
+import ua.acclorite.book_story.presentation.core.util.noRippleClickable
+import ua.acclorite.book_story.presentation.core.components.common.SelectionContainer
+import ua.acclorite.book_story.presentation.core.components.common.StyledText
 
 @Composable
 fun ReaderPagesLayout(
@@ -73,237 +59,148 @@ fun ReaderPagesLayout(
     contentPadding: PaddingValues,
     verticalPadding: Dp,
     onPageChanged: (Int) -> Unit,
-    // Добавляем параметры для обработки тапов меню
     showMenu: Boolean,
     fullscreenMode: Boolean,
     onMenuVisibility: (ReaderEvent.OnMenuVisibility) -> Unit,
-    // Параметры для подсветки чтения (как в обычном режиме)
     highlightedReading: Boolean,
     highlightedReadingThickness: FontWeight,
-    // Параметры для изображений
     imagesCornersRoundness: Dp,
     imagesAlignment: ua.acclorite.book_story.domain.util.HorizontalAlignment,
     imagesWidth: Float,
     imagesColorEffects: ColorFilter?
 ) {
-    Log.d("READER_PAGES_LAYOUT", "=== Creating ReaderPagesLayout ===")
-    Log.d("READER_PAGES_LAYOUT", "Pages count: ${pages.size}")
-    
-    val density = LocalDensity.current
-
     val pagerState = rememberPagerState(
         initialPage = 0,
         pageCount = { pages.size }
     )
     
-    // Отслеживаем изменения страниц
     LaunchedEffect(pagerState.currentPage) {
-        Log.d("READER_PAGES_LAYOUT", "Page changed to: ${pagerState.currentPage}")
         onPageChanged(pagerState.currentPage)
     }
     
     SelectionContainer(
-        onCopyRequested = { /* TODO: Handle copy */ },
-        onShareRequested = { /* TODO: Handle share */ },
-        onWebSearchRequested = { /* TODO: Handle web search */ },
-        onTranslateRequested = { /* TODO: Handle translate */ },
-        onDictionaryRequested = { /* TODO: Handle dictionary */ }
-    ) {
+        onCopyRequested = {
+            if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.S_V2) {
+                // copied logic
+            }
+        },
+        onShareRequested = { },
+        onWebSearchRequested = { },
+        onTranslateRequested = { },
+        onDictionaryRequested = { }
+    ) { toolbarHidden ->
         HorizontalPager(
             state = pagerState,
             modifier = Modifier
                 .fillMaxSize()
-                .noRippleClickable(
-                    onClick = {
-                        Log.d("READER_PAGES_LAYOUT", "Pager tapped - toggling menu")
-                        onMenuVisibility(
-                            ReaderEvent.OnMenuVisibility(
-                                show = !showMenu,
-                                fullscreenMode = fullscreenMode,
-                                saveCheckpoint = true,
-                                activity = activity
-                            )
+                .then(
+                    if (toolbarHidden) {
+                        Modifier.noRippleClickable(
+                            onClick = {
+                                onMenuVisibility(
+                                    ReaderEvent.OnMenuVisibility(
+                                        show = !showMenu,
+                                        fullscreenMode = fullscreenMode,
+                                        saveCheckpoint = true,
+                                        activity = activity
+                                    )
+                                )
+                            }
                         )
-                    }
+                    } else Modifier
                 )
-               ) { pageIndex ->
-                   if (pageIndex < pages.size) {
-                       val page = pages[pageIndex]
+        ) { pageIndex ->
+            if (pageIndex < pages.size) {
+                val page = pages[pageIndex]
 
-                       // Рендерим каждый ReaderText элемент отдельно
-                       Column(
-                           modifier = Modifier
-                               .fillMaxSize()
-                               .padding(contentPadding)
-                               .padding(horizontal = sidePadding)
-                               .onSizeChanged { size ->
-                                   Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex ACTUAL RENDERED HEIGHT: ${size.height}px")
-                               }
-                       ) {
-                           var isFirstElement = true
-                           var totalElements = 0
-                           var totalTextElements = 0
-                           var totalActualHeight = 0
-                           
-                           // Рассчитываем доступную высоту
-                           val contentPaddingPx = contentPadding.calculateTopPadding() + contentPadding.calculateBottomPadding()
-                           val verticalPaddingPx = verticalPadding * 2
-                           val sidePaddingPx = sidePadding * 2 * density.density
-                           val availableWidth = screenWidth - sidePaddingPx.value.toInt()
-                           // Применяем тот же коэффициент безопасности, что и в PageCalculator
-                           val safetyMargin = 1.00f // 100% от доступной высоты (синхронизировано с PageCalculator)
-                           val availableHeight = ((screenHeight - contentPaddingPx.value.toInt() - verticalPaddingPx.value.toInt()) * safetyMargin).toInt()
-                           
-                           // Создаем TextPaint для расчета высот (синхронизировано с PageCalculator)
-                           val textPaint = TextMeasurementUtils.createTextPaint(
-                               fontSize = fontSize,
-                               fontFamily = fontFamily,
-                               fontThickness = fontThickness,
-                               fontStyle = fontStyle,
-                               textAlignment = textAlignment,
-                               letterSpacing = letterSpacing,
-                               density = density.density
-                           )
-                           
-                           Log.d("PAGE_RENDER_DEBUG", "=== Page $pageIndex Render Analysis ===")
-                           Log.d("PAGE_RENDER_DEBUG", "Screen: ${screenWidth}x${screenHeight}")
-                           Log.d("PAGE_RENDER_DEBUG", "Available: ${availableWidth}x${availableHeight} (with ${(safetyMargin * 100).toInt()}% safety margin)")
-                           Log.d("PAGE_RENDER_DEBUG", "RENDERING ${page.content.size} elements from PageCalculator")
-                           
-                           for ((elementIndex, readerText) in page.content.withIndex()) {
-                               // Добавляем интервал между элементами (кроме первого)
-                               if (!isFirstElement) {
-                                   Spacer(
-                                       modifier = Modifier
-                                           .height(paragraphHeight)
-                                           .onSizeChanged { size ->
-                                               Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex Element $elementIndex (Spacer) ACTUAL HEIGHT: ${size.height}px")
-                                               totalActualHeight += size.height
-                                           }
-                                   )
-                               }
-                               isFirstElement = false
-                               totalElements++
-                               
-                               when (readerText) {
-                                   is ReaderText.Text -> {
-                                       totalTextElements++
-                                       
-                                       // Проверяем, является ли это разорванным параграфом
-                                       // \u200B = продолжение, \u200C = первая часть
-                                       val isBrokenParagraph = readerText.line.text.startsWith("\u200B") || readerText.line.text.startsWith("\u200C")
-                                       val isContinuation = readerText.line.text.startsWith("\u200B")
-                                       
-                                       StyledText(
-                                           text = readerText.line,
-                                           style = TextStyle(
-                                               fontFamily = fontFamily.font,
-                                               fontWeight = fontThickness.thickness,
-                                               textAlign = textAlignment.textAlignment,
-                                               textIndent = if (isContinuation) TextIndent.None else TextIndent(firstLine = paragraphIndentation),
-                                               fontStyle = fontStyle,
-                                               letterSpacing = letterSpacing,
-                                               fontSize = fontSize,
-                                               lineHeight = lineHeight,
-                                               color = fontColor,
-                                               lineBreak = if (isBrokenParagraph) LineBreak.Simple else LineBreak.Paragraph
-                                           ),
-                                           highlightText = highlightedReading,
-                                           highlightThickness = highlightedReadingThickness,
-                                           modifier = Modifier
-                                               .fillMaxWidth()
-                                               .onSizeChanged { size ->
-                                                   Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex Element $elementIndex (Text) ACTUAL HEIGHT: ${size.height}px")
-                                                   totalActualHeight += size.height
-                                               }
-                                       )
-                                   }
-                                   
-                                   is ReaderText.Chapter -> {
-                                       // Рендерим главу ТОЧНО ТАК ЖЕ как в OFF режиме
-                                       Column(
-                                           modifier = Modifier
-                                               .fillMaxWidth()
-                                               .onSizeChanged { size ->
-                                                   Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex Element $elementIndex (Chapter) ACTUAL HEIGHT: ${size.height}px")
-                                                   totalActualHeight += size.height
-                                               }
-                                       ) {
-                                           Spacer(modifier = Modifier.height(22.dp))
-                                           
-                                           StyledText(
-                                               text = buildAnnotatedString { append(readerText.title) },
-                                               modifier = Modifier.fillMaxWidth(),
-                                               style = (if (!readerText.nested) MaterialTheme.typography.headlineMedium
-                                               else MaterialTheme.typography.headlineSmall)
-                                                   .copy(
-                                                       color = fontColor,
-                                                       textAlign = textAlignment.textAlignment
-                                                   ),
-                                               highlightText = highlightedReading,
-                                               highlightThickness = highlightedReadingThickness
-                                           )
-                                           
-                                           Spacer(modifier = Modifier.height(16.dp))
-                                           HorizontalDivider(color = fontColor.copy(0.4f))
-                                           Spacer(modifier = Modifier.height(16.dp))
-                                       }
-                                   }
-                                   
-                                   is ReaderText.Separator -> {
-                                       // Рендерим разделитель ТОЧНО ТАК ЖЕ как в OFF режиме
-                                       HorizontalDivider(
-                                           thickness = 3.dp,
-                                           modifier = Modifier
-                                               .clip(CircleShape)
-                                               .onSizeChanged { size ->
-                                                   Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex Element $elementIndex (Separator) ACTUAL HEIGHT: ${size.height}px")
-                                                   totalActualHeight += size.height
-                                               },
-                                           color = fontColor.copy(0.3f)
-                                       )
-                                   }
-                                   
-                                   is ReaderText.Image -> {
-                                       // Рендерим изображение ТОЧНО ТАК ЖЕ как в OFF режиме
-                                       Box(
-                                           modifier = Modifier
-                                               .fillMaxWidth()
-                                               .onSizeChanged { size ->
-                                                   Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex Element $elementIndex (Image) ACTUAL HEIGHT: ${size.height}px")
-                                                   totalActualHeight += size.height
-                                               },
-                                           contentAlignment = imagesAlignment.alignment
-                                       ) {
-                                           Image(
-                                               modifier = Modifier
-                                                   .clip(androidx.compose.foundation.shape.RoundedCornerShape(imagesCornersRoundness))
-                                                   .fillMaxWidth(imagesWidth),
-                                               bitmap = readerText.imageBitmap,
-                                               contentDescription = null,
-                                               colorFilter = imagesColorEffects,
-                                               contentScale = androidx.compose.ui.layout.ContentScale.FillWidth
-                                           )
-                                       }
-                                   }
-                               }
-                           }
-                           
-                           // Логируем итоговую статистику рендера страницы
-                           Log.d("PAGE_RENDER_DEBUG", "=== Page $pageIndex Summary ===")
-                           Log.d("PAGE_RENDER_DEBUG", "Total elements: $totalElements")
-                           Log.d("PAGE_RENDER_DEBUG", "Total text elements: $totalTextElements")
-                           Log.d("PAGE_RENDER_DEBUG", "Page $pageIndex rendering completed")
-                           
-                           // Логируем итоговую высоту после всех onSizeChanged
-                           LaunchedEffect(totalActualHeight) {
-                               Log.d("PAGE_RENDER_DEBUG", "TOTAL ACTUAL CONTENT HEIGHT: ${totalActualHeight}px")
-                           }
-                       }
-                   }
-               }
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = sidePadding)
+                ) {
+                    var isFirstElement = true
+                    
+                    for (readerText in page.content) {
+                        if (!isFirstElement) {
+                            Spacer(modifier = Modifier.height(paragraphHeight))
+                        }
+                        isFirstElement = false
+                        
+                        when (readerText) {
+                            is ReaderText.Text -> {
+                                val isContinuation = readerText.line.text.startsWith("\u200B")
+                                
+                                StyledText(
+                                    text = readerText.line,
+                                    style = TextStyle(
+                                        fontFamily = fontFamily.font,
+                                        fontWeight = fontThickness.thickness,
+                                        textAlign = textAlignment.textAlignment,
+                                        textIndent = if (isContinuation) TextIndent.None else TextIndent(firstLine = paragraphIndentation),
+                                        fontStyle = fontStyle,
+                                        letterSpacing = letterSpacing,
+                                        fontSize = fontSize,
+                                        lineHeight = lineHeight,
+                                        color = fontColor,
+                                        lineBreak = LineBreak.Paragraph // Use Paragraph everywhere to avoid word breaking
+                                    ),
+                                    highlightText = highlightedReading,
+                                    highlightThickness = highlightedReadingThickness,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                            
+                            is ReaderText.Chapter -> {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Spacer(modifier = Modifier.height(22.dp))
+                                    
+                                    StyledText(
+                                        text = buildAnnotatedString { append(readerText.title) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        style = (if (!readerText.nested) MaterialTheme.typography.headlineMedium
+                                        else MaterialTheme.typography.headlineSmall)
+                                            .copy(
+                                                color = fontColor,
+                                                textAlign = textAlignment.textAlignment
+                                            ),
+                                        highlightText = highlightedReading,
+                                        highlightThickness = highlightedReadingThickness
+                                    )
+                                    
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    HorizontalDivider(color = fontColor.copy(0.4f))
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                }
+                            }
+                            
+                            is ReaderText.Separator -> {
+                                HorizontalDivider(
+                                    thickness = 3.dp,
+                                    modifier = Modifier.clip(CircleShape),
+                                    color = fontColor.copy(0.3f)
+                                )
+                            }
+                            
+                            is ReaderText.Image -> {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentAlignment = imagesAlignment.alignment
+                                ) {
+                                    Image(
+                                        modifier = Modifier
+                                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(imagesCornersRoundness))
+                                            .fillMaxWidth(imagesWidth),
+                                        bitmap = readerText.imageBitmap,
+                                        contentDescription = null,
+                                        colorFilter = imagesColorEffects,
+                                        contentScale = androidx.compose.ui.layout.ContentScale.FillWidth
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
-
-// Функция для расчета высоты текста (синхронизирована с PageCalculator.calculateParagraphHeight)
-
