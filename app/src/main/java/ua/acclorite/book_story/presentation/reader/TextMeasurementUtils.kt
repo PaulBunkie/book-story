@@ -10,6 +10,9 @@ import android.graphics.Typeface
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -20,6 +23,7 @@ import ua.acclorite.book_story.domain.reader.ReaderFontThickness
 import ua.acclorite.book_story.domain.reader.ReaderTextAlignment
 import ua.acclorite.book_story.domain.reader.FontWithName
 import ua.acclorite.book_story.domain.reader.ReaderText
+import kotlin.math.roundToInt
 
 object TextMeasurementUtils {
     
@@ -74,6 +78,46 @@ object TextMeasurementUtils {
             ReaderTextAlignment.CENTER -> TextAlign.Center
             ReaderTextAlignment.END -> TextAlign.End
             ReaderTextAlignment.JUSTIFY -> TextAlign.Justify
+        }
+    }
+
+    /**
+     * Применяет эффект подсветки текста (Bionic Reading) без изменения исходной строки
+     */
+    fun applyHighlighting(text: AnnotatedString, highlightThickness: FontWeight): AnnotatedString {
+        return buildAnnotatedString {
+            append(text) // Сохраняем оригинальные индексы и скрытые символы
+            
+            val wordRegex = Regex("\\S+")
+            wordRegex.findAll(text.text).forEach { matchResult ->
+                val wordString = matchResult.value
+                if (wordString.none { it.isLetter() }) {
+                    return@forEach
+                }
+
+                val textWord = wordString.dropWhile { !it.isLetter() }.dropLastWhile { !it.isLetter() }
+                var digitsAtStart = 0
+                for (char in wordString) {
+                    if (!char.isLetter()) digitsAtStart++
+                    else break
+                }
+                
+                val highlightArea = when (textWord.length) {
+                    3 -> 1
+                    else -> (textWord.length * 0.5f).roundToInt()
+                } + digitsAtStart
+
+                val startOffset = matchResult.range.first + digitsAtStart
+                val endOffset = matchResult.range.first + highlightArea
+                
+                if (startOffset < endOffset) {
+                    addStyle(
+                        style = SpanStyle(fontWeight = highlightThickness),
+                        start = startOffset,
+                        end = endOffset
+                    )
+                }
+            }
         }
     }
     

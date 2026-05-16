@@ -97,8 +97,9 @@ fun LazyPageLayoutMeasurer(
         }
     } else 0
 
-    val availableWidth = screenWidth - sidePaddingPx - contentPaddingHorizontalPx
-    val availableHeight = screenHeight - contentPaddingVerticalPx - verticalPaddingPx - progressBarHeightPx - 16
+    // Используем небольшой запас в 2 пикселя по ширине и 5 по высоте для компенсации ошибок округления
+    val availableWidth = (screenWidth - sidePaddingPx - contentPaddingHorizontalPx - 2).coerceAtLeast(0)
+    val availableHeight = (screenHeight - contentPaddingVerticalPx - verticalPaddingPx - progressBarHeightPx - 5).coerceAtLeast(0)
 
     var hasCalculated by remember(bookId, text, fontSize, lineHeight, sidePadding, paragraphHeight, availableHeight, startElement, startCarryOverText) { 
         mutableStateOf(false) 
@@ -272,10 +273,11 @@ private fun calculatePagesCore(
             remainingTextPart = null
             index++
         } else {
+            // Если это текст и он не влезает целиком, пробуем разбить
             if (readerText is ReaderText.Text) {
                 val effectiveAvailableHeight = availableHeight - currentPageHeight - spacingHeight
                 
-                if (effectiveAvailableHeight > (fontSize.value * density * 2)) {
+                if (effectiveAvailableHeight > (fontSize.value * density)) {
                      val textStyle = TextStyle(
                         fontFamily = fontFamily.font,
                         fontWeight = fontThickness.thickness,
@@ -288,8 +290,15 @@ private fun calculatePagesCore(
                         lineBreak = LineBreak.Paragraph
                     )
                     
+                    // КРИТИЧНО: Применяем подсветку перед измерением, так как она меняет ширину слов!
+                    val measuredText = if (highlightedReading) {
+                        TextMeasurementUtils.applyHighlighting(readerText.line, highlightedReadingThickness)
+                    } else {
+                        readerText.line
+                    }
+                    
                     val layoutResult = textMeasurer.measure(
-                        text = readerText.line,
+                        text = measuredText,
                         style = textStyle,
                         constraints = Constraints(maxWidth = availableWidth)
                     )
@@ -302,7 +311,17 @@ private fun calculatePagesCore(
                     }
                     
                     if (lastFittingLine >= 0) {
-                        val splitOffset = layoutResult.getLineEnd(lastFittingLine)
+                        var splitOffset = layoutResult.getLineEnd(lastFittingLine)
+                        
+                        // Проверка границ слов: не разрываем слова при переносе между страницами
+                        val textString = readerText.line.text
+                        if (splitOffset < textString.length && !textString[splitOffset].isWhitespace()) {
+                            val lastSpace = textString.lastIndexOf(' ', splitOffset)
+                            val lineStart = layoutResult.getLineStart(lastFittingLine)
+                            if (lastSpace > lineStart) {
+                                splitOffset = lastSpace + 1
+                            }
+                        }
                         
                         if (splitOffset > 0 && splitOffset < readerText.line.length) {
                              val firstPart = ReaderText.Text(readerText.line.subSequence(0, splitOffset))
@@ -348,7 +367,7 @@ private fun calculatePagesCore(
         pages.add(Page(
             content = currentPage.toList(),
             startIndex = pageStartIndex,
-            endIndex = if (remainingTextPart != null) index else index - 1,
+            endIndex = text.lastIndex.coerceAtMost(index),
             carryOverText = remainingTextPart
         ))
     }
@@ -520,8 +539,8 @@ fun calculatePageRangeComposable(
         }
     } else 0
 
-    val availableWidth = screenWidth - sidePaddingPx - contentPaddingHorizontalPx
-    val availableHeight = screenHeight - contentPaddingVerticalPx - verticalPaddingPx - progressBarHeightPx - 16
+    val availableWidth = (screenWidth - sidePaddingPx - contentPaddingHorizontalPx - 2).coerceAtLeast(0)
+    val availableHeight = (screenHeight - contentPaddingVerticalPx - verticalPaddingPx - progressBarHeightPx - 5).coerceAtLeast(0)
 
     val chapterStyleMedium = MaterialTheme.typography.headlineMedium
     val chapterStyleSmall = MaterialTheme.typography.headlineSmall
