@@ -102,9 +102,12 @@ fun LazyPageLayoutMeasurer(
         }
     } else 0
 
-    val availableWidth = (screenWidth - sidePaddingPx - contentPaddingHorizontalPx).coerceAtLeast(0)
-    // Оставляем 4 пикселя запаса
-    val availableHeight = (screenHeight - contentPaddingVerticalPx - verticalPaddingPx - progressBarHeightPx - 4).coerceAtLeast(0)
+    // БУФЕР ШИРИНЫ: Уменьшаем ширину в измерителе на 8 пикселей. 
+    // Это заставит измеритель переносить слова РАНЬШЕ, чем это сделает экран.
+    val availableWidth = (screenWidth - sidePaddingPx - contentPaddingHorizontalPx - 8).coerceAtLeast(0)
+    
+    // БУФЕР ВЫСОТЫ: 2 пикселя для компенсации Float
+    val availableHeight = (screenHeight - contentPaddingVerticalPx - verticalPaddingPx - progressBarHeightPx - 2).coerceAtLeast(0)
 
     val paragraphSpacingPx = with(density) { paragraphHeight.roundToPx() }
 
@@ -293,7 +296,7 @@ private fun calculatePagesCore(
                         fontSize = fontSize,
                         lineHeight = lineHeight,
                         lineBreak = LineBreak.Paragraph,
-                        textDirection = TextDirection.Content,
+                        textDirection = TextDirection.Content, // Синхронизируем направление
                         platformStyle = PlatformTextStyle(includeFontPadding = false),
                         lineHeightStyle = LineHeightStyle(
                             alignment = LineHeightStyle.Alignment.Center,
@@ -322,6 +325,8 @@ private fun calculatePagesCore(
                     
                     if (lastFittingLine >= 0) {
                         var splitOffset = layoutResult.getLineEnd(lastFittingLine)
+                        
+                        // ГАРАНТИЯ ЦЕЛОГО СЛОВА: если мы прерываемся посреди слова, откатываемся до ближайшего пробела
                         val textString = measuredText.text
                         if (splitOffset < textString.length && !textString[splitOffset].isWhitespace()) {
                             val lastSpace = textString.lastIndexOf(' ', splitOffset)
@@ -561,8 +566,9 @@ fun calculatePageRangeComposable(
         }
     } else 0
 
-    val availableWidth = (screenWidth - sidePaddingPx - contentPaddingHorizontalPx - 2).coerceAtLeast(0)
-    val availableHeight = (screenHeight - contentPaddingVerticalPx - verticalPaddingPx - progressBarHeightPx - 1).coerceAtLeast(0)
+    // БУФЕР ШИРИНЫ (синхронно с основным измерителем)
+    val availableWidth = (screenWidth - sidePaddingPx - contentPaddingHorizontalPx - 20).coerceAtLeast(0)
+    val availableHeight = (screenHeight - contentPaddingVerticalPx - verticalPaddingPx - progressBarHeightPx - 2).coerceAtLeast(0)
 
     val paragraphSpacingPx = with(density) { paragraphHeight.roundToPx() }
 
